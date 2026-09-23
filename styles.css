@@ -61,3 +61,48 @@
 /* ── H2 阅读聚光灯 ── */
 .markdown-preview-sizer > *, .markdown-preview-view > * { transition: opacity 0.25s ease; }
 .markdown-preview-view .muyun-dim { opacity: var(--muyun-dim, 0.35); }
+
+/* ── v0.2 新增：已读轨迹 / 悬停预览 / 状态栏 / 编辑态 / 读完柔光 ── */
+.muyun-rail-dot.read {
+	opacity: 0.75;
+	background: var(--text-normal, #ccc);
+}
+.muyun-rail-tip {
+	position: absolute;
+	right: 16px;
+	max-width: 260px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	background: var(--background-secondary, #20202a);
+	color: var(--text-normal, #ddd);
+	border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.1));
+	border-radius: 6px;
+	padding: 3px 9px;
+	font-size: 11.5px;
+	pointer-events: none;
+	z-index: 20;
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+}
+.status-bar .muyun-crumb {
+	color: var(--text-muted);
+	cursor: default;
+	max-width: 40vw;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.status-bar .muyun-crumb:hover { color: var(--text-normal); }
+.status-bar .muyun-readtime { color: var(--text-faint); cursor: default; }
+
+/* 编辑态段落聚焦（CM6 行装饰） */
+.cm-line { transition: opacity 0.2s ease; }
+.cm-line.muyun-focus-dim { opacity: 0.3; }
+
+/* 读完柔光（单次脉冲） */
+@keyframes muyun-finish-glow {
+	0% { box-shadow: 0 0 0 0 transparent; }
+	35% { box-shadow: 0 0 14px 3px var(--text-accent, #b1aad8); }
+	100% { box-shadow: 0 0 6px var(--text-accent, #b1aad8); }
+}
+.muyun-progress-fill.muyun-glow { animation: muyun-finish-glow 0.9s ease; }

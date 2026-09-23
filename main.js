@@ -1,22 +1,43 @@
 'use strict';
 
-/* MuYun Companion · v0.1.0
-   MuYun 慕云主题的配套增强插件，承载主题（纯 CSS）无法实现的三项 JS 效果：
-   H1 顶部阅读进度条 / H2 阅读聚光灯（默认关）/ H8 侧缘小地图点轨。
+/* MuYun Companion · v0.2.0
+   MuYun 慕云主题的配套增强插件，承载主题（纯 CSS）无法实现的效果：
+   H1 顶部阅读进度条 / H2 阅读聚光灯（默认关）/ H8 侧缘小地图点轨
+   + v0.2 新增：续读记忆 / 状态栏标题面包屑 / 小地图阅读轨迹与悬停预览 /
+     编辑态段落聚焦（CM6，默认关）/ 打字机滚动（CM6，默认关）/
+     状态栏阅读时长 / 小地图↔大纲联动 / 读完柔光（一次性彩蛋）。
    纯 JavaScript（无构建链），CommonJS 引用运行时 obsidian 模块。
    设计文档：《MuYun 设计文档 v0.3》§7；样式走主题 CSS 变量，主题缺席时优雅降级。 */
 
 const { Plugin, PluginSettingTab, Setting, MarkdownView, Notice, debounce } = require('obsidian');
 
+/* CM6 能力探测：段落聚焦与打字机滚动依赖 EditorView 体系；旧版缺失时自动禁用这两项 */
+const obs = require('obsidian');
+const CM = {
+	ViewPlugin: obs.ViewPlugin,
+	Decoration: obs.Decoration,
+	RangeSetBuilder: obs.RangeSetBuilder
+};
+const CM_OK = !!(CM.ViewPlugin && CM.Decoration && CM.RangeSetBuilder);
+
 const DEFAULT_SETTINGS = {
 	progressBar: true,      /* H1 顶部阅读进度条 */
 	minimap: true,          /* H8 侧缘小地图点轨 */
+	minimapTrail: true,     /* 小地图已读轨迹着色 */
 	spotlight: false,       /* H2 阅读聚光灯（观感争议项，默认关） */
-	spotlightDim: 0.35      /* 聚光灯暗度：非当前小节的不透明度 */
+	spotlightDim: 0.35,     /* 聚光灯暗度 */
+	resumeReading: true,    /* 续读记忆 */
+	breadcrumb: true,       /* 状态栏标题面包屑 */
+	readTime: true,         /* 状态栏阅读时长估计 */
+	editorFocus: false,     /* 编辑态段落聚焦（写作聚光灯，默认关） */
+	typewriter: false,      /* 打字机滚动（默认关） */
+	finishGlow: true        /* 读完柔光（一次性彩蛋） */
 };
 
 const HEADING_SEL = 'h1, h2, h3, h4, h5, h6';
 const HEADING_SCOPE_SEL = HEADING_SEL.split(', ').map(function (s) { return ':scope > ' + s; }).join(', ');
+const STORE_KEY = 'muyun-companion.readpos.v1';
+const STORE_MAX = 400;
 
 function isHeadingBlock(el) {
 	return el.matches(HEADING_SEL) || !!el.querySelector(HEADING_SCOPE_SEL);
@@ -33,46 +54,70 @@ class MuyunCompanionPlugin extends Plugin {
 		this.railEl = null;
 		this.railView = null;
 		this.railHeads = [];
+		this.railMaxRead = -1;
 		this.dimContainer = null;
 		this.dimBlocks = [];
+		this.lastSpotKey = '';
 		this.raf = 0;
+		this.crumbEl = this.addStatusBarItem();
+		this.timeEl = this.addStatusBarItem();
+		this.crumbEl.addClass('muyun-crumb');
+		this.timeEl.addClass('muyun-readtime');
+		this.loadStore();
 
 		this.addSettingTab(new MuyunCompanionSettingTab(this.app, this));
 
-		this.addCommand({
-			name: '切换阅读进度条',
-			callback: () => this.toggle('progressBar')
-		});
-		this.addCommand({
-			name: '切换阅读聚光灯',
-			callback: () => this.toggle('spotlight')
-		});
-		this.addCommand({
-			name: '切换侧缘小地图',
-			callback: () => this.toggle('minimap')
-		});
+		/* 命令（可绑快捷键） */
+		const toggles = [
+			['切换阅读进度条', 'progressBar'],
+			['切换阅读聚光灯', 'spotlight'],
+			['切换侧缘小地图', 'minimap'],
+			['切换标题面包屑', 'breadcrumb'],
+			['切换续读记忆', 'resumeReading'],
+			['切换编辑态段落聚焦', 'editorFocus'],
+			['切换打字机滚动', 'typewriter']
+		];
+		toggles.forEach(pair => this.addCommand({
+			name: pair[0],
+			callback: () => this.toggle(pair[1])
+		}));
 
 		/* H1 进度条挂在 body 上，全生命周期存在，按需显隐 */
 		this.initBar();
 
+		/* 编辑态段落聚焦 / 打字机滚动（CM6 编辑器扩展；能力缺失或未开启时为空操作） */
+		if (CM_OK) this.registerEditorExtension(this.buildCmExtension());
+
 		this.registerEvent(this.app.workspace.on('active-leaf-change', () => this.refresh()));
 		this.registerEvent(this.app.workspace.on('layout-change', debounce(() => this.refresh(), 150, true)));
-		this.registerEvent(this.app.workspace.on('editor-change', debounce(() => this.refreshSoft(), 800, true)));
+		this.registerEvent(this.app.workspace.on('file-open', file => {
+			this.restoreFor(file);
+			this.computeReadTime();
+			this.refresh();
+		}));
+		this.registerEvent(this.app.workspace.on('editor-change', debounce(() => {
+			this.refreshSoft();
+			this.computeReadTime();
+		}, 800, true)));
 		this.registerDomEvent(window, 'resize', () => this.updateProgress());
 		this.registerDomEvent(document, 'scroll', () => this.onScroll(), { capture: true, passive: true });
 
 		this.refresh();
+		this.computeReadTime();
 	}
 
 	onunload() {
 		this.teardownBar();
 		this.clearRail();
 		this.clearDim();
+		this.crumbEl.empty();
+		this.timeEl.empty();
 	}
 
 	async saveSettings() {
 		await this.saveData(this.settings);
 		this.refresh();
+		this.updateBreadcrumb();
 	}
 
 	toggle(key) {
@@ -82,7 +127,11 @@ class MuyunCompanionPlugin extends Plugin {
 	}
 
 	label(key) {
-		return { progressBar: '阅读进度条', spotlight: '阅读聚光灯', minimap: '侧缘小地图' }[key] || key;
+		return {
+			progressBar: '阅读进度条', spotlight: '阅读聚光灯', minimap: '侧缘小地图',
+			breadcrumb: '标题面包屑', resumeReading: '续读记忆',
+			editorFocus: '编辑态段落聚焦', typewriter: '打字机滚动'
+		}[key] || key;
 	}
 
 	activeMarkdownView() {
@@ -102,12 +151,14 @@ class MuyunCompanionPlugin extends Plugin {
 		this.updateProgress();
 		this.buildRail();
 		this.applySpotlight();
+		this.updateBreadcrumb();
 	}
 
 	refreshSoft() {
 		this.updateProgress();
 		if (this.settings.minimap) this.buildRail();
 		if (this.settings.spotlight) this.applySpotlight();
+		this.updateBreadcrumb();
 	}
 
 	onScroll() {
@@ -117,10 +168,12 @@ class MuyunCompanionPlugin extends Plugin {
 			this.updateProgress();
 			this.applySpotlight();
 			this.updateRail();
+			this.updateBreadcrumb();
+			this.saveCurrentPosSoon();
 		});
 	}
 
-	/* ── H1 顶部阅读进度条 ── */
+	/* ═══ H1 顶部阅读进度条 ═══ */
 	initBar() {
 		this.barEl = document.createElement('div');
 		this.barEl.className = 'muyun-progress';
@@ -150,13 +203,29 @@ class MuyunCompanionPlugin extends Plugin {
 		}
 		this.barEl.classList.toggle('on', show);
 		this.barFill.style.width = pct + '%';
+
+		/* 读完柔光（一次性彩蛋）：单篇首次触底时进度条柔光 0.9s */
+		if (show && pct >= 99.5 && this.settings.finishGlow) {
+			const file = this.app.workspace.getActiveFile();
+			if (file) {
+				const rec = this.store[file.path] || (this.store[file.path] = { ts: Date.now() });
+				if (!rec.done) {
+					rec.done = true;
+					this.saveStoreSoon();
+					this.barFill.classList.add('muyun-glow');
+					const fill = this.barFill;
+					setTimeout(function () { fill.classList.remove('muyun-glow'); }, 900);
+				}
+			}
+		}
 	}
 
-	/* ── H2 阅读聚光灯（仅阅读视图；当前小节全亮，其余降透明） ── */
+	/* ═══ H2 阅读聚光灯（仅阅读视图；当前小节全亮，其余降透明） ═══ */
 	clearDim() {
 		this.dimBlocks.forEach(function (b) { b.classList.remove('muyun-dim'); });
 		this.dimBlocks = [];
 		this.dimContainer = null;
+		this.lastSpotKey = '';
 	}
 
 	applySpotlight() {
@@ -185,6 +254,11 @@ class MuyunCompanionPlugin extends Plugin {
 		const from = heads.length ? heads[active] : 0;
 		const to = heads.length && active + 1 < heads.length ? heads[active + 1] : blocks.length;
 
+		/* 签名守卫：小节未变化时不做任何 DOM 写操作（消除每帧重算） */
+		const key = from + '-' + to + ':' + blocks.length;
+		if (key === this.lastSpotKey) return;
+		this.lastSpotKey = key;
+
 		this.dimBlocks.forEach(function (b) { b.classList.remove('muyun-dim'); });
 		this.dimBlocks = [];
 		for (let i = 0; i < blocks.length; i++) {
@@ -212,7 +286,7 @@ class MuyunCompanionPlugin extends Plugin {
 		return blocks;
 	}
 
-	/* ── H8 侧缘小地图点轨（仅阅读视图；跟随滚动 + 点击跳转） ── */
+	/* ═══ H8 侧缘小地图点轨（仅阅读视图；跟随滚动 + 点击跳转 + 已读轨迹 + 悬停预览） ═══ */
 	clearRail() {
 		if (this.railEl) this.railEl.remove();
 		if (this.railView) this.railView.contentEl.classList.remove('muyun-has-rail');
@@ -241,18 +315,25 @@ class MuyunCompanionPlugin extends Plugin {
 			this.register(() => this.clearRail());
 		}
 
-		/* 内容变化时重建点轨 */
+		/* 内容变化时重建点轨；续读记忆同步已读轨迹 */
 		if (this.railHeads.length !== heads.length) {
 			this.railEl.innerHTML = '';
 			this.railHeads = heads;
+			const file = this.app.workspace.getActiveFile();
+			const rec = file ? this.store[file.path] : null;
+			this.railMaxRead = rec && typeof rec.readIdx === 'number' ? rec.readIdx : -1;
 			const self = this;
 			heads.forEach(function (h) {
 				const b = document.createElement('button');
 				b.className = 'muyun-rail-dot lvl' + h.tagName[1];
-				b.setAttribute('aria-label', (h.textContent || '').trim().slice(0, 48));
+				const txt = (h.textContent || '').trim();
+				b.setAttribute('aria-label', txt.slice(0, 48));
 				b.addEventListener('click', function () {
 					h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+					self.pulseOutline();
 				});
+				b.addEventListener('mouseenter', function () { self.showRailTip(b, (h.tagName || 'H1') + ' · ' + txt); });
+				b.addEventListener('mouseleave', function () { self.showRailTip(null); });
 				self.railEl.appendChild(b);
 			});
 		}
@@ -268,32 +349,240 @@ class MuyunCompanionPlugin extends Plugin {
 		this.railHeads.forEach(function (h, i) {
 			if (h.getBoundingClientRect().top - baseTop <= previewEl.clientHeight * 0.35) cur = i;
 		});
+		/* 已读轨迹：本次会话内到达过的最深小节（含续读记忆恢复的进度） */
+		this.railMaxRead = Math.max(this.railMaxRead, cur);
+		const trail = this.settings.minimapTrail;
+		const maxRead = this.railMaxRead;
 		const dots = this.railEl.querySelectorAll('button');
-		dots.forEach(function (b, i) { b.classList.toggle('cur', i === cur); });
+		dots.forEach(function (b, i) {
+			b.classList.toggle('cur', i === cur);
+			b.classList.toggle('read', trail && i <= maxRead && i !== cur);
+		});
+		const file = this.app.workspace.getActiveFile();
+		if (file && this.store[file.path]) {
+			this.store[file.path].readIdx = maxRead;
+			this.saveStoreSoon();
+		}
 	}
+
+	/* 悬停预览：圆点旁浮出「层级 · 标题」 */
+	showRailTip(anchor, text) {
+		let tip = this.railTip;
+		if (!anchor) { if (tip) tip.remove(); this.railTip = null; return; }
+		if (!tip) {
+			tip = document.createElement('div');
+			tip.className = 'muyun-rail-tip';
+			this.railEl.appendChild(tip);
+			this.railTip = tip;
+		}
+		tip.textContent = text;
+		tip.style.top = (anchor.offsetTop - 4) + 'px';
+	}
+
+	/* 小地图 ↔ 大纲联动：跳转后让大纲面板的当前项滚入视野（is-active 由核心大纲维护） */
+	pulseOutline() {
+		setTimeout(() => {
+			this.app.workspace.getLeavesOfType('outline').forEach(function (leaf) {
+				const active = leaf.view && leaf.view.contentEl
+					? leaf.view.contentEl.querySelector('.tree-item-self.is-active')
+					: null;
+				if (active) active.scrollIntoView({ block: 'nearest' });
+			});
+		}, 420);
+	}
+
+	/* ═══ 续读记忆：按路径记住滚动比，重开自动回位；附带已读轨迹持久化 ═══ */
+	loadStore() {
+		try { this.store = JSON.parse(localStorage.getItem(STORE_KEY) || '{}') || {}; }
+		catch (e) { this.store = {}; }
+	}
+
+	saveStoreSoon() {
+		clearTimeout(this._storeT);
+		this._storeT = setTimeout(() => {
+			localStorage.setItem(STORE_KEY, JSON.stringify(this.store));
+		}, 400);
+	}
+
+	pruneStore() {
+		const keys = Object.keys(this.store);
+		if (keys.length <= STORE_MAX) return;
+		keys.sort((a, b) => (this.store[a].ts || 0) - (this.store[b].ts || 0));
+		while (keys.length > STORE_MAX) delete this.store[keys.shift()];
+	}
+
+	saveCurrentPosSoon() {
+		clearTimeout(this._posT);
+		this._posT = setTimeout(() => this.saveCurrentPos(), 600);
+	}
+
+	saveCurrentPos() {
+		if (!this.settings.resumeReading) return;
+		const file = this.app.workspace.getActiveFile();
+		const el = this.scrollElOf(this.activeMarkdownView());
+		if (!file || !el) return;
+		const max = el.scrollHeight - el.clientHeight;
+		const rec = this.store[file.path] || (this.store[file.path] = { ts: 0 });
+		if (max > 4) rec.ratio = Math.min(1, Math.max(0, el.scrollTop / max));
+		rec.ts = Date.now();
+		if (typeof this.railMaxRead === 'number' && this.railMaxRead >= 0) rec.readIdx = this.railMaxRead;
+		this.pruneStore();
+		this.saveStoreSoon();
+	}
+
+	restoreFor(file) {
+		if (!this.settings.resumeReading || !file) return;
+		const rec = this.store[file.path];
+		if (!rec || !rec.ratio) return;
+		setTimeout(() => {
+			const f = this.app.workspace.getActiveFile();
+			if (!f || f.path !== file.path) return;
+			const el = this.scrollElOf(this.activeMarkdownView());
+			if (!el) return;
+			const max = el.scrollHeight - el.clientHeight;
+			if (max > 4) el.scrollTop = Math.min(1, rec.ratio) * max;
+		}, 350);
+	}
+
+	/* ═══ 状态栏：标题面包屑 + 阅读时长 ═══ */
+	headingInfos(view) {
+		if (!view) return [];
+		const ce = view.contentEl;
+		let els;
+		if (view.getMode() === 'preview') {
+			const pv = ce.querySelector('.markdown-preview-view');
+			if (!pv) return [];
+			els = Array.from(pv.querySelectorAll(HEADING_SEL));
+		} else {
+			els = Array.from(ce.querySelectorAll(
+				'.cm-line.HyperMD-header-1, .cm-line.HyperMD-header-2, .cm-line.HyperMD-header-3, ' +
+				'.cm-line.HyperMD-header-4, .cm-line.HyperMD-header-5, .cm-line.HyperMD-header-6'));
+		}
+		const preview = view.getMode() === 'preview';
+		return els.map(function (el) {
+			let level = 1;
+			if (preview) level = +el.tagName[1];
+			else {
+				const m = /HyperMD-header-(\d)/.exec(el.className);
+				if (m) level = +m[1];
+			}
+			return { el, level, text: (el.textContent || '').trim() };
+		});
+	}
+
+	updateBreadcrumb() {
+		if (!this.crumbEl) return;
+		if (!this.settings.breadcrumb) { this.crumbEl.setText(''); return; }
+		const view = this.activeMarkdownView();
+		const container = this.scrollElOf(view);
+		const hs = this.headingInfos(view);
+		if (!view || !container || !hs.length) { this.crumbEl.setText(''); return; }
+
+		const baseTop = container.getBoundingClientRect().top;
+		let cur = 0;
+		hs.forEach(function (h, i) {
+			if (h.el.getBoundingClientRect().top - baseTop <= container.clientHeight * 0.35) cur = i;
+		});
+
+		/* 祖先链：从当前标题向上收集层级递减的标题，再确保自身在末位 */
+		const chain = [];
+		let lvl = 99;
+		for (let i = cur; i >= 0; i--) {
+			if (hs[i].level < lvl) { chain.unshift(hs[i]); lvl = hs[i].level; if (lvl === 1) break; }
+		}
+		if (chain[chain.length - 1] !== hs[cur]) chain.push(hs[cur]);
+
+		let text = chain.map(function (c) { return c.text || '（无标题）'; }).join(' › ');
+		if (text.length > 64) text = '…' + text.slice(-63);
+		this.crumbEl.setText(text);
+		this.crumbEl.setAttribute('title', text);
+	}
+
+	computeReadTime() {
+		if (!this.timeEl) return;
+		if (!this.settings.readTime) { this.timeEl.setText(''); return; }
+		const view = this.activeMarkdownView();
+		if (!view) { this.timeEl.setText(''); return; }
+		try {
+			const text = view.editor.getValue();
+			const cjk = (text.match(/[\u4e00-\u9fff]/g) || []).length;
+			const words = (text.replace(/[\u4e00-\u9fff]/g, ' ').match(/[A-Za-z0-9_'’-]+/g) || []).length;
+			this.timeEl.setText('约 ' + Math.max(1, Math.round((cjk + words) / 400)) + ' 分钟');
+		} catch (e) { /* 阅读态下编辑器暂不可用时静默跳过，等下一次触发 */ }
+	}
+
+	/* ═══ CM6 编辑器扩展：编辑态段落聚焦（默认关） + 打字机滚动（默认关） ═══ */
+	buildCmExtension() {
+		const plugin = this;
+		const MuyunFocusPlugin = class {
+			constructor(view) {
+				this.view = view;
+				this.decorations = this.build();
+			}
+			update(u) {
+				if (u.docChanged || u.selectionSet || u.viewportChanged) this.decorations = this.build();
+				if (plugin.settings.typewriter && u.selectionSet) plugin.typewriterScroll(this.view);
+			}
+			build() {
+				if (!plugin.settings.editorFocus) return CM.Decoration.none;
+				const view = this.view;
+				const main = view.state.selection.main;
+				if (!main.empty) return CM.Decoration.none; /* 框选时不聚焦 */
+				const doc = view.state.doc;
+				const curLine = doc.lineAt(main.head).number;
+				let s = curLine, e = curLine;
+				while (s > 1 && doc.line(s - 1).text.trim()) s--;
+				while (e < doc.lines && doc.line(e + 1).text.trim()) e++;
+				const builder = new CM.RangeSetBuilder();
+				for (let pos = view.viewport.from; pos <= view.viewport.to; ) {
+					const line = doc.lineAt(pos);
+					if ((line.number < s || line.number > e) && line.text.trim()) {
+						builder.add(line.from, line.from, plugin.dimLineDeco);
+					}
+					pos = line.to + 1;
+				}
+				return builder.finish();
+			}
+		};
+		return [CM.ViewPlugin.fromClass(MuyunFocusPlugin, { decorations: v => v.decorations })];
+	}
+
+	typewriterScroll(view) {
+		const head = view.state.selection.main.head;
+		const coords = view.coordsAtPos(head);
+		if (!coords) return;
+		const rect = view.scrollDOM.getBoundingClientRect();
+		const delta = coords.top - (rect.top + rect.height * 0.33);
+		if (Math.abs(delta) > 24) view.scrollDOM.scrollTop += delta;
+	}
+
+	/* ═══ 收尾 ═══ */
+	teardownExtras() { /* 预留 */ }
 }
 
-/* ── 设置页 ── */
+/* ── 设置页（分组：阅读 / 写作 / 全局） ── */
 class MuyunCompanionSettingTab extends PluginSettingTab {
 	display() {
 		const { containerEl } = this;
-		containerEl.empty();
 		const p = this.plugin;
+		containerEl.empty();
+
+		containerEl.createEl('h3', { text: '阅读 Reading' });
 
 		new Setting(containerEl)
-			.setName('阅读进度条（H1）')
-			.setDesc('笔记顶部 3px 细条，随滚动显示「读到哪了」。仅 Markdown 视图显示。')
+			.setName('阅读进度条 · Reading progress (H1)')
+			.setDesc('笔记顶部 4px 渐变细条，随滚动显示「读到哪了」。仅 Markdown 视图显示。')
 			.addToggle(t => t.setValue(p.settings.progressBar)
 				.onChange(async v => { p.settings.progressBar = v; await p.saveSettings(); }));
 
 		new Setting(containerEl)
-			.setName('阅读聚光灯（H2）')
-			.setDesc('阅读视图下当前小节全亮、其余降透明。观感争议项，默认关。仅阅读视图生效。')
+			.setName('阅读聚光灯 · Spotlight (H2)')
+			.setDesc('阅读视图下当前小节全亮、其余降透明。观感争议项，默认关。')
 			.addToggle(t => t.setValue(p.settings.spotlight)
 				.onChange(async v => { p.settings.spotlight = v; await p.saveSettings(); }));
 
 		new Setting(containerEl)
-			.setName('聚光灯暗度')
+			.setName('聚光灯暗度 · Dim level')
 			.setDesc('非当前小节的不透明度，越小越暗。')
 			.addSlider(s => s.setLimits(0.15, 0.6, 0.05)
 				.setValue(p.settings.spotlightDim)
@@ -301,14 +590,62 @@ class MuyunCompanionSettingTab extends PluginSettingTab {
 				.onChange(async v => { p.settings.spotlightDim = v; await p.saveSettings(); }));
 
 		new Setting(containerEl)
-			.setName('侧缘小地图（H8）')
+			.setName('侧缘小地图 · Edge minimap (H8)')
 			.setDesc('笔记右缘标题点轨：跟随滚动高亮当前小节，点击圆点跳转。仅阅读视图生效。')
 			.addToggle(t => t.setValue(p.settings.minimap)
 				.onChange(async v => { p.settings.minimap = v; await p.saveSettings(); }));
 
 		new Setting(containerEl)
-			.setName('说明')
-			.setDesc('进度条颜色跟随主题交互色（MuYun 下即你的 accent 体系）。三项均可用命令面板「切换…」或快捷键控制。编辑（实时预览）模式下聚光灯与小地图不显示。');
+			.setName('小地图已读轨迹 · Read trail')
+			.setDesc('已到达过的小节圆点变为实心亮色，进度持久保存。')
+			.addToggle(t => t.setValue(p.settings.minimapTrail)
+				.onChange(async v => { p.settings.minimapTrail = v; await p.saveSettings(); p.refresh(); }));
+
+		new Setting(containerEl)
+			.setName('续读记忆 · Resume reading')
+			.setDesc('按笔记记住上次读到的位置，重新打开自动回到原处。')
+			.addToggle(t => t.setValue(p.settings.resumeReading)
+				.onChange(async v => { p.settings.resumeReading = v; await p.saveSettings(); }));
+
+		new Setting(containerEl)
+			.setName('标题面包屑 · Breadcrumb')
+			.setDesc('状态栏显示「章 › 节 › 小节」当前路径，随滚动更新。')
+			.addToggle(t => t.setValue(p.settings.breadcrumb)
+				.onChange(async v => { p.settings.breadcrumb = v; await p.saveSettings(); }));
+
+		new Setting(containerEl)
+			.setName('阅读时长估计 · Read time')
+			.setDesc('状态栏显示「约 N 分钟」（按中文 400 字/分钟估算）。')
+			.addToggle(t => t.setValue(p.settings.readTime)
+				.onChange(async v => { p.settings.readTime = v; await p.saveSettings(); p.computeReadTime(); }));
+
+		new Setting(containerEl)
+			.setName('读完柔光 · Finish glow')
+			.setDesc('单篇笔记首次读到结尾时，进度条柔光一次。')
+			.addToggle(t => t.setValue(p.settings.finishGlow)
+				.onChange(async v => { p.settings.finishGlow = v; await p.saveSettings(); }));
+
+		containerEl.createEl('h3', { text: '写作 Writing' });
+
+		new Setting(containerEl)
+			.setName('编辑态段落聚焦 · Paragraph focus')
+			.setDesc('光标所在段落全亮、其余段落淡出（框选时自动暂停）。默认关。')
+			.addToggle(t => t.setValue(p.settings.editorFocus)
+				.onChange(async v => { p.settings.editorFocus = v; await p.saveSettings(); }));
+
+		new Setting(containerEl)
+			.setName('打字机滚动 · Typewriter scrolling')
+			.setDesc('光标始终保持在屏幕上三分之一处。默认关。')
+			.addToggle(t => t.setValue(p.settings.typewriter)
+				.onChange(async v => { p.settings.typewriter = v; await p.saveSettings(); }));
+
+		containerEl.createEl('h3', { text: '说明 Notes' });
+		const notes = containerEl.createEl('p', {
+			text: '聚光灯与小地图仅阅读视图生效；编辑态效果依赖 CodeMirror（不支持时自动禁用）。' +
+				'进度条与小地图颜色跟随主题交互色（MuYun 下即你的 accent 体系）。' +
+				'所有效果均可用命令面板「切换…」或快捷键控制。'
+		});
+		notes.style.cssText = 'color:var(--text-muted);font-size:12px;';
 	}
 }
 
