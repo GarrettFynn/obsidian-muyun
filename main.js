@@ -53,11 +53,13 @@ class MuyunCompanionPlugin extends Plugin {
 		this.barFill = null;
 		this.railEl = null;
 		this.railView = null;
+		this.railTargets = null;
 		this.railHeads = [];
 		this.railMaxRead = -1;
 		this.dimContainer = null;
 		this.dimBlocks = [];
 		this.lastSpotKey = '';
+		this._spotCache = null;
 		this.raf = 0;
 		this.crumbEl = this.addStatusBarItem();
 		this.timeEl = this.addStatusBarItem();
@@ -100,7 +102,7 @@ class MuyunCompanionPlugin extends Plugin {
 			this.refreshSoft();
 			this.computeReadTime();
 		}, 800, true)));
-		this.registerDomEvent(window, 'resize', () => this.updateProgress());
+		this.registerDomEvent(window, 'resize', () => { this._spotCache = null; this.updateProgress(); });
 		this.registerDomEvent(document, 'scroll', () => this.onScroll(), { capture: true, passive: true });
 
 		this.refresh();
@@ -227,6 +229,7 @@ class MuyunCompanionPlugin extends Plugin {
 		this.dimBlocks = [];
 		this.dimContainer = null;
 		this.lastSpotKey = '';
+		this._spotCache = null;
 	}
 
 	applySpotlight() {
@@ -245,13 +248,22 @@ class MuyunCompanionPlugin extends Plugin {
 		if (!blocks.length) return;
 
 		/* 定位当前小节：以视口上 35% 为 reading line，取其上方最近的标题块 */
-		const baseTop = previewEl.getBoundingClientRect().top;
+		/* 偏移缓存：布局高度未变时复用标题块内容偏移（滚动零布局读；高度变化/换容器/resize 才重算） */
+		if (!this._spotCache || this._spotCache.el !== previewEl || this._spotCache.height !== previewEl.scrollHeight) {
+			const baseTop = previewEl.getBoundingClientRect().top;
+			const st = previewEl.scrollTop;
+			this._spotCache = {
+				el: previewEl,
+				height: previewEl.scrollHeight,
+				tops: blocks.map(function (b) { return b.getBoundingClientRect().top - baseTop + st; })
+			};
+		}
+		const tops = this._spotCache.tops;
 		const heads = [];
 		blocks.forEach(function (b, i) { if (isHeadingBlock(b)) heads.push(i); });
 		let active = 0;
 		heads.forEach(function (idx, k) {
-			const top = blocks[idx].getBoundingClientRect().top - baseTop;
-			if (top <= previewEl.clientHeight * 0.35) active = k;
+			if (tops[idx] - previewEl.scrollTop <= previewEl.clientHeight * 0.35) active = k;
 		});
 		const from = heads.length ? heads[active] : 0;
 		const to = heads.length && active + 1 < heads.length ? heads[active + 1] : blocks.length;
@@ -295,19 +307,32 @@ class MuyunCompanionPlugin extends Plugin {
 		this.railEl = null;
 		this.railView = null;
 		this.railHeads = [];
+		this.railTargets = null;
 		this.railSig = '';
 	}
 
 	buildRail() {
 		const view = this.activeMarkdownView();
-		const previewEl = view && view.getMode() === 'preview'
-			? view.contentEl.querySelector('.markdown-preview-view')
-			: null;
-		if (!this.settings.minimap || !previewEl) { this.clearRail(); return; }
+		if (!this.settings.minimap || !view) { this.clearRail(); return; }
 		if (this.railEl && this.railEl.parentElement !== view.contentEl) this.clearRail();
 
-		const heads = Array.from(previewEl.querySelectorAll(HEADING_SEL));
-		if (!heads.length) { this.clearRail(); return; }
+		/* 目标解析：阅读态 = 标题元素（跟随滚动）；实时预览 = metadataCache 标题行（跟随光标） */
+		let targets;
+		if (view.getMode() === 'preview') {
+			const previewEl = view.contentEl.querySelector('.markdown-preview-view');
+			if (!previewEl) { this.clearRail(); return; }
+			targets = Array.from(previewEl.querySelectorAll(HEADING_SEL)).map(function (h) {
+				return { el: h, line: null, level: +h.tagName[1], text: (h.textContent || '').trim() };
+			});
+		} else {
+			const file = this.app.workspace.getActiveFile();
+			const cache = file ? this.app.metadataCache.getFileCache(file) : null;
+			const hs = cache && cache.headings ? cache.headings : [];
+			targets = hs.map(function (h) {
+				return { el: null, line: h.position.start.line, level: h.level, text: h.heading || '' };
+			});
+		}
+		if (!targets.length) { this.clearRail(); return; }
 
 		if (!this.railEl) {
 			this.railEl = document.createElement('div');
@@ -317,26 +342,34 @@ class MuyunCompanionPlugin extends Plugin {
 			this.railView = view;
 		}
 
-		/* 内容签名（数量+标题文本）变化才重建点轨，避免旧元素闭包悬挂；续读记忆同步已读轨迹 */
-		const sig = heads.length + '¦' + heads.map(function (h) { return (h.textContent || '').trim(); }).join('¦');
+		/* 内容签名（数量+层级+标题文本+模式）变化才重建点轨，避免旧元素闭包悬挂；续读记忆同步已读轨迹 */
+		const sig = targets.length + '¦' + view.getMode() + '¦' + targets.map(function (t) { return t.level + ':' + t.text; }).join('¦');
 		if (this.railSig !== sig) {
 			this.railSig = sig;
 			this.railEl.innerHTML = '';
-			this.railHeads = heads;
+			this.railTargets = targets;
+			this.railHeads = targets.map(function (t) { return t.el; }).filter(Boolean);
 			const file = this.app.workspace.getActiveFile();
 			const rec = file ? this.store[file.path] : null;
 			this.railMaxRead = rec && typeof rec.readIdx === 'number' ? rec.readIdx : -1;
 			const self = this;
-			heads.forEach(function (h) {
+			targets.forEach(function (t) {
 				const b = document.createElement('button');
-				b.className = 'muyun-rail-dot lvl' + h.tagName[1];
-				const txt = (h.textContent || '').trim();
+				b.className = 'muyun-rail-dot lvl' + t.level;
+				const txt = t.text;
 				b.setAttribute('aria-label', txt.slice(0, 48));
 				b.addEventListener('click', function () {
-					h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+					if (t.el) {
+						t.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+					} else {
+						try {
+							view.editor.setCursor({ line: t.line, ch: 0 });
+							view.editor.scrollIntoView({ from: { line: t.line, ch: 0 }, to: { line: t.line, ch: 0 } }, true);
+						} catch (e) { /* 编辑器不可用时静默 */ }
+					}
 					self.pulseOutline();
 				});
-				b.addEventListener('mouseenter', function () { self.showRailTip(b, (h.tagName || 'H1') + ' · ' + txt); });
+				b.addEventListener('mouseenter', function () { self.showRailTip(b, 'H' + t.level + ' · ' + txt); });
 				b.addEventListener('mouseleave', function () { self.showRailTip(null); });
 				self.railEl.appendChild(b);
 			});
@@ -345,19 +378,28 @@ class MuyunCompanionPlugin extends Plugin {
 	}
 
 	updateRail() {
-		if (!this.railEl || !this.railHeads.length || !this.railView) return;
-		const previewEl = this.railView.contentEl.querySelector('.markdown-preview-view');
-		if (!previewEl) return;
-		const baseTop = previewEl.getBoundingClientRect().top;
-		let cur = 0;
-		this.railHeads.forEach(function (h, i) {
-			if (h.getBoundingClientRect().top - baseTop <= previewEl.clientHeight * 0.35) cur = i;
-		});
-		/* 已读轨迹：本次会话内到达过的最深小节（含续读记忆恢复的进度） */
-		this.railMaxRead = Math.max(this.railMaxRead, cur);
-		const trail = this.settings.minimapTrail;
-		const maxRead = this.railMaxRead;
+		if (!this.railEl || !this.railTargets || !this.railTargets.length || !this.railView) return;
+		const view = this.railView;
 		const dots = this.railEl.querySelectorAll('button');
+		let cur = 0;
+		if (view.getMode() === 'preview') {
+			const previewEl = view.contentEl.querySelector('.markdown-preview-view');
+			if (!previewEl) return;
+			const baseTop = previewEl.getBoundingClientRect().top;
+			this.railTargets.forEach(function (t, i) {
+				if (t.el && t.el.getBoundingClientRect().top - baseTop <= previewEl.clientHeight * 0.35) cur = i;
+			});
+		} else {
+			try {
+				const cl = view.editor.getCursor().line;
+				this.railTargets.forEach(function (t, i) { if (t.line <= cl) cur = i; });
+			} catch (e) { /* 光标暂不可得时保持原状 */ }
+		}
+		if (this.settings.minimapTrail && view.getMode() === 'preview') {
+			this.railMaxRead = Math.max(this.railMaxRead, cur);
+		}
+		const maxRead = this.railMaxRead;
+		const trail = this.settings.minimapTrail && view.getMode() === 'preview';
 		dots.forEach(function (b, i) {
 			b.classList.toggle('cur', i === cur);
 			b.classList.toggle('read', trail && i <= maxRead && i !== cur);
@@ -547,24 +589,47 @@ class MuyunCompanionPlugin extends Plugin {
 				if (plugin.settings.typewriter && u.selectionSet) plugin.typewriterScroll(this.view);
 			}
 			build() {
-				if (!plugin.settings.editorFocus) return CM.Decoration.none;
 				const view = this.view;
-				const main = view.state.selection.main;
-				if (!main.empty) return CM.Decoration.none; /* 框选时不聚焦 */
 				const doc = view.state.doc;
-				const curLine = doc.lineAt(main.head).number;
-				let s = curLine, e = curLine;
-				while (s > 1 && doc.line(s - 1).text.trim()) s--;
-				while (e < doc.lines && doc.line(e + 1).text.trim()) e++;
-				const builder = new CM.RangeSetBuilder();
-				for (let pos = view.viewport.from; pos <= view.viewport.to; ) {
-					const line = doc.lineAt(pos);
-					if ((line.number < s || line.number > e) && line.text.trim()) {
-						builder.add(line.from, line.from, plugin.dimLineDeco);
+
+				/* 编辑态段落聚焦（默认关）：光标所在空行分隔段落全亮，其余非空行淡出；框选时暂停 */
+				if (plugin.settings.editorFocus) {
+					const main = view.state.selection.main;
+					if (main.empty) {
+						const curLine = doc.lineAt(main.head).number;
+						let s = curLine, e = curLine;
+						while (s > 1 && doc.line(s - 1).text.trim()) s--;
+						while (e < doc.lines && doc.line(e + 1).text.trim()) e++;
+						const builder = new CM.RangeSetBuilder();
+						for (let pos = view.viewport.from; pos <= view.viewport.to; ) {
+							const line = doc.lineAt(pos);
+							if ((line.number < s || line.number > e) && line.text.trim()) {
+								builder.add(line.from, line.from, plugin.dimLineDeco);
+							}
+							pos = line.to + 1;
+						}
+						return builder.finish();
 					}
-					pos = line.to + 1;
+					return CM.Decoration.none;
 				}
-				return builder.finish();
+
+				/* v0.3 实时预览聚光灯（默认关）：以光标所在标题节（行首 # 标题）为界，节外非空行淡出 */
+				if (plugin.settings.spotlight) {
+					const curLine = doc.lineAt(view.state.selection.main.head).number;
+					let s = curLine, e = curLine;
+					while (s > 1 && !/^#{1,6}\s/.test(doc.line(s - 1).text)) s--;
+					while (e < doc.lines && !/^#{1,6}\s/.test(doc.line(e + 1).text)) e++;
+					const builder = new CM.RangeSetBuilder();
+					for (let pos = view.viewport.from; pos <= view.viewport.to; ) {
+						const line = doc.lineAt(pos);
+						if ((line.number < s || line.number > e) && line.text.trim()) {
+							builder.add(line.from, line.from, plugin.dimLineDeco);
+						}
+						pos = line.to + 1;
+					}
+					return builder.finish();
+				}
+				return CM.Decoration.none;
 			}
 		};
 		return [CM.ViewPlugin.fromClass(MuyunFocusPlugin, { decorations: v => v.decorations })];
@@ -600,7 +665,7 @@ class MuyunCompanionSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('阅读聚光灯 · Spotlight (H2)')
-			.setDesc('阅读视图下当前小节全亮、其余降透明。观感争议项，默认关。')
+			.setDesc('当前小节全亮、其余降透明。阅读视图随滚动；实时预览随光标。观感争议项，默认关。')
 			.addToggle(t => t.setValue(p.settings.spotlight)
 				.onChange(async v => { p.settings.spotlight = v; await p.saveSettings(); }));
 
@@ -614,7 +679,7 @@ class MuyunCompanionSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('侧缘小地图 · Edge minimap (H8)')
-			.setDesc('笔记右缘标题点轨：跟随滚动高亮当前小节，点击圆点跳转。仅阅读视图生效。')
+			.setDesc('右缘标题点轨：阅读视图随滚动、实时预览随光标；点击圆点跳转。')
 			.addToggle(t => t.setValue(p.settings.minimap)
 				.onChange(async v => { p.settings.minimap = v; await p.saveSettings(); }));
 
