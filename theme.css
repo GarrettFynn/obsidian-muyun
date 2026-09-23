@@ -1,0 +1,98 @@
+/* MuYun 慕云 · v0.1.0
+   a snug theme for long-form reading, fast writing & quick navigation
+   三支柱：① 阅读舒适 ② 写作高效 ③ 快速定位
+   约定：优先改 CSS 变量；组件选择器集中在文件末尾，并注明为什么变量解决不了。 */
+
+/* ============ Style Settings（可选，装了插件后可调） ============ */
+/* @settings
+name: MuYun 慕云
+id: muyun-theme
+settings:
+  - id: link-color
+    title: 链接颜色
+    type: variable-color
+    format: hex
+    default: '#8EA6FF'
+  - id: bold-color
+    title: 加粗锚点色
+    type: variable-color
+    format: hex
+    default: '#E3C88F'
+  - id: muyun-wide
+    title: 宽幅阅读模式
+    type: class-toggle
+*/
+
+/* ============ 深色 ── 墨蓝纸 ============ */
+.theme-dark {
+	/* ① 阅读舒适：低刺激底色与正文 */
+	--background-primary: #16161D;
+	--background-secondary: #1D1D27;
+	--text-normal: #D6D8E0;
+	--text-muted: #8A8FA3;
+	--text-faint: #565B6E;
+
+	/* ③ 快速定位：高对比扫描锚点 */
+	--text-accent: #A99BEF;
+	--interactive-accent: #4C3A99;
+	--link-color: #8EA6FF;
+	--bold-color: #E3C88F;
+	--text-selection: rgba(98, 118, 210, 0.30);
+
+	/* ③ 层级：H1–H6 拉开梯度，扫一眼就知道自己在哪 */
+	--h1-size: 1.7em;
+	--h2-size: 1.42em;
+	--h3-size: 1.22em;
+	--h4-size: 1.08em;
+	--h5-size: 1.0em;
+	--h6-size: 0.92em;
+}
+
+/* ============ 浅色 ── 暖纸 ============ */
+.theme-light {
+	--background-primary: #FAF9F6;
+	--background-secondary: #EFEBE3;
+	--text-normal: #2C2C33;
+	--text-muted: #6B6F80;
+	--text-faint: #A0A3B0;
+
+	--text-accent: #5A4FC4;
+	--interactive-accent: #42238B;
+	--link-color: #3A6DD8;
+	--bold-color: #9A6B00;
+	--text-selection: rgba(66, 35, 139, 0.14);
+
+	--h1-size: 1.7em;
+	--h2-size: 1.42em;
+	--h3-size: 1.22em;
+	--h4-size: 1.08em;
+	--h5-size: 1.0em;
+	--h6-size: 0.92em;
+}
+
+/* ============ 两套主题共用（放在 body 上，官方推荐做法） ============ */
+body {
+	/* ① 阅读舒适：行长、字号、段距——长文三件套 */
+	--file-line-width: 40rem;
+	--font-text-size: 16.5px;
+	--p-spacing: 0.9rem;
+
+	/* ③ 快速定位：文内标题（笔记顶部的内联标题） */
+	--inline-title-size: 1.8em;
+}
+
+/* 宽幅阅读：Style Settings 开关 → body 挂 .muyun-wide 类 */
+.muyun-wide {
+	--file-line-width: 50rem;
+}
+
+/* ============ 组件覆盖（变量解决不了的才到这里） ============ */
+
+/* ③ H1 下划线：阅读态与实时预览是两套渲染层，选择器必须写两份。
+   阅读态 = .markdown-preview-view h1
+   实时预览 = .HyperMD-header-1（整行块级，用 .cm-header-1 会在多行标题上断裂） */
+.markdown-preview-view h1,
+.HyperMD-header-1 {
+	padding-bottom: 0.25em;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
