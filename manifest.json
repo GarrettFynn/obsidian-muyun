@@ -1,0 +1,9 @@
+{
+	"id": "muyun-companion",
+	"name": "MuYun Companion",
+	"version": "0.1.0",
+	"minAppVersion": "1.4.0",
+	"description": "MuYun 慕云主题的配套增强：阅读进度条（H1）、阅读聚光灯（H2）、侧缘小地图（H8），均带独立开关。",
+	"author": "GarrettFynn",
+	"isDesktopOnly": false
+}

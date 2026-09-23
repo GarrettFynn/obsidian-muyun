@@ -1,0 +1,61 @@
+/* MuYun Companion · v0.1.0
+   H1 进度条 / H2 聚光灯 / H8 小地图 的样式层。
+   颜色走 Obsidian/主题 CSS 变量（--interactive-accent 等），MuYun 缺席时优雅降级。 */
+
+/* ── H1 顶部阅读进度条 ── */
+.muyun-progress {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 3px;
+	z-index: 60;
+	pointer-events: none;
+	opacity: 0;
+	transition: opacity 0.2s ease;
+}
+.muyun-progress.on { opacity: 1; }
+.muyun-progress-fill {
+	height: 100%;
+	width: 0;
+	background: var(--interactive-accent, #8a5cf5);
+	border-radius: 0 2px 2px 0;
+	box-shadow: 0 0 6px rgba(0, 0, 0, 0.18);
+}
+
+/* ── H8 侧缘小地图点轨 ── */
+.view-content.muyun-has-rail { position: relative; }
+.muyun-rail {
+	position: absolute;
+	right: 5px;
+	top: 12%;
+	bottom: 12%;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	gap: 9px;
+	z-index: 12;
+}
+.muyun-rail-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	border: 0;
+	padding: 0;
+	background: var(--text-muted, #999);
+	opacity: 0.35;
+	cursor: pointer;
+	transition: opacity 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.muyun-rail-dot.lvl1 { width: 10px; height: 10px; }
+.muyun-rail-dot:hover { opacity: 0.8; }
+.muyun-rail-dot.cur {
+	opacity: 1;
+	transform: scale(1.4);
+	background: var(--text-accent, #8a5cf5);
+	box-shadow: 0 0 0 3px var(--background-modifier-active-hover, rgba(0, 0, 0, 0.06));
+}
+
+/* ── H2 阅读聚光灯 ── */
+.markdown-preview-view > * { transition: opacity 0.25s ease; }
+.markdown-preview-view .muyun-dim { opacity: var(--muyun-dim, 0.35); }
