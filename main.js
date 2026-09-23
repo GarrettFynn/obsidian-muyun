@@ -84,6 +84,7 @@ class MuyunCompanionPlugin extends Plugin {
 
 		/* H1 进度条挂在 body 上，全生命周期存在，按需显隐 */
 		this.initBar();
+		this.register(() => this.clearRail());
 
 		/* 编辑态段落聚焦 / 打字机滚动（CM6 编辑器扩展；能力缺失或未开启时为空操作） */
 		if (CM_OK) this.registerEditorExtension(this.buildCmExtension());
@@ -181,7 +182,7 @@ class MuyunCompanionPlugin extends Plugin {
 		this.barFill.className = 'muyun-progress-fill';
 		this.barEl.appendChild(this.barFill);
 		document.body.appendChild(this.barEl);
-		this.register(() => this.barEl.remove());
+		this.register(() => { if (this.barEl) this.barEl.remove(); });
 	}
 
 	teardownBar() {
@@ -238,6 +239,7 @@ class MuyunCompanionPlugin extends Plugin {
 			return;
 		}
 		if (this.dimContainer !== previewEl) this.clearDim();
+		previewEl.style.setProperty('--muyun-dim', String(this.settings.spotlightDim));
 
 		const blocks = this.resolveBlocks(previewEl);
 		if (!blocks.length) return;
@@ -293,6 +295,7 @@ class MuyunCompanionPlugin extends Plugin {
 		this.railEl = null;
 		this.railView = null;
 		this.railHeads = [];
+		this.railSig = '';
 	}
 
 	buildRail() {
@@ -312,11 +315,12 @@ class MuyunCompanionPlugin extends Plugin {
 			view.contentEl.classList.add('muyun-has-rail');
 			view.contentEl.appendChild(this.railEl);
 			this.railView = view;
-			this.register(() => this.clearRail());
 		}
 
-		/* 内容变化时重建点轨；续读记忆同步已读轨迹 */
-		if (this.railHeads.length !== heads.length) {
+		/* 内容签名（数量+标题文本）变化才重建点轨，避免旧元素闭包悬挂；续读记忆同步已读轨迹 */
+		const sig = heads.length + '¦' + heads.map(function (h) { return (h.textContent || '').trim(); }).join('¦');
+		if (this.railSig !== sig) {
+			this.railSig = sig;
 			this.railEl.innerHTML = '';
 			this.railHeads = heads;
 			const file = this.app.workspace.getActiveFile();
@@ -434,14 +438,24 @@ class MuyunCompanionPlugin extends Plugin {
 		if (!this.settings.resumeReading || !file) return;
 		const rec = this.store[file.path];
 		if (!rec || !rec.ratio) return;
-		setTimeout(() => {
-			const f = this.app.workspace.getActiveFile();
-			if (!f || f.path !== file.path) return;
-			const el = this.scrollElOf(this.activeMarkdownView());
-			if (!el) return;
-			const max = el.scrollHeight - el.clientHeight;
-			if (max > 4) el.scrollTop = Math.min(1, rec.ratio) * max;
-		}, 350);
+		const self = this;
+		let applied = 0;
+		/* 两段式：350ms 首次施加；1000ms 时若用户未动滚动（ scrollTop 未变）则校正大笔记的渲染偏差 */
+		const attempt = function (delay, verify) {
+			setTimeout(function () {
+				const f = self.app.workspace.getActiveFile();
+				if (!f || f.path !== file.path) return;
+				const el = self.scrollElOf(self.activeMarkdownView());
+				if (!el) return;
+				const max = el.scrollHeight - el.clientHeight;
+				if (max <= 4) return;
+				const target = Math.min(1, rec.ratio) * max;
+				if (!verify) { el.scrollTop = target; applied = el.scrollTop; }
+				else if (el.scrollTop === applied) { el.scrollTop = target; applied = el.scrollTop; }
+			}, delay);
+		};
+		attempt(350, false);
+		attempt(1000, true);
 	}
 
 	/* ═══ 状态栏：标题面包屑 + 阅读时长 ═══ */
@@ -472,11 +486,17 @@ class MuyunCompanionPlugin extends Plugin {
 
 	updateBreadcrumb() {
 		if (!this.crumbEl) return;
-		if (!this.settings.breadcrumb) { this.crumbEl.setText(''); return; }
+		if (!this.settings.breadcrumb) {
+			if (this._crumbText) { this.crumbEl.setText(''); this._crumbText = ''; }
+			return;
+		}
 		const view = this.activeMarkdownView();
 		const container = this.scrollElOf(view);
 		const hs = this.headingInfos(view);
-		if (!view || !container || !hs.length) { this.crumbEl.setText(''); return; }
+		if (!view || !container || !hs.length) {
+			if (this._crumbText) { this.crumbEl.setText(''); this._crumbText = ''; }
+			return;
+		}
 
 		const baseTop = container.getBoundingClientRect().top;
 		let cur = 0;
@@ -494,8 +514,11 @@ class MuyunCompanionPlugin extends Plugin {
 
 		let text = chain.map(function (c) { return c.text || '（无标题）'; }).join(' › ');
 		if (text.length > 64) text = '…' + text.slice(-63);
-		this.crumbEl.setText(text);
-		this.crumbEl.setAttribute('title', text);
+		if (text !== this._crumbText) {
+			this._crumbText = text;
+			this.crumbEl.setText(text);
+			this.crumbEl.setAttribute('title', text);
+		}
 	}
 
 	computeReadTime() {
