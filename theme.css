@@ -251,7 +251,7 @@ blockquote {
 
 /* ── B4 代码块与行内代码（语言角标已定：去掉，保持原生形态；--code-background/--code-radius 已在上方变量区） ── */
 
-/* ── B5 Callout 语义配色（决策三定稿：全部取自用户调色板来源池，RGB 三元组深浅共用） ──
+/* ── B5 Callout 语义配色（决策三定稿 + B5 补议拍板：取自用户调色板来源池；danger 红系为唯一池外例外） ──
    note/info/todo        → 200  档 #7375AE（蓝紫）
    tip/hint/important
    success/check/done    → B200 #3F8566（苔绿）
@@ -260,7 +260,7 @@ blockquote {
    question/help/faq     → A200 #A0644C（陶土，与 warning 同族）
    warning/caution       → A200 #A0644C
    danger/error/bug/
-   failure/missing       → A500 #814730（深陶土）⚠ 红系待 B5 补议后替换
+   failure/missing       → #7E3232 暗红（2026-09-24 用户拍板选 C）
    quote/cite            → 灰           */
 .theme-dark, .theme-light {
 	--callout-color-note: 115, 117, 174;
@@ -282,11 +282,11 @@ blockquote {
 	--callout-color-warning: 160, 100, 76;
 	--callout-color-caution: 160, 100, 76;
 	--callout-color-attention: 160, 100, 76;
-	--callout-color-danger: 129, 71, 48;
-	--callout-color-error: 129, 71, 48;
-	--callout-color-bug: 129, 71, 48;
-	--callout-color-failure: 129, 71, 48;
-	--callout-color-missing: 129, 71, 48;
+	--callout-color-danger: 126, 50, 50;
+	--callout-color-error: 126, 50, 50;
+	--callout-color-bug: 126, 50, 50;
+	--callout-color-failure: 126, 50, 50;
+	--callout-color-missing: 126, 50, 50;
 	--callout-color-quote: 158, 158, 158;
 	--callout-color-cite: 158, 158, 158;
 }
