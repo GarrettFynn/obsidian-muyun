@@ -3,11 +3,11 @@
 > a snug theme for long-form reading, fast writing & quick navigation
 > 舒适阅读 · 高效写作 · 快速定位
 
-MuYun（慕云）是一个围绕三支柱设计的 Obsidian 主题：
+MuYun（慕云）是一个围绕三支柱设计的 Obsidian 主题（v0.2.0）：
 
-- **阅读舒适** —— 纸感底色、40rem 行长、松弛段距、低刺激界面
-- **写作高效** —— 编辑态与阅读态零跳变，模式切换不打断心流
-- **快速定位** —— H1–H6 强层级、琥珀色加粗锚点、可扫读的链接系统
+- **阅读舒适** —— 墨蓝纸 / 晨光暖纸双底、护眼降噪配色（正文对比 ≈10–11:1 舒适带）、40rem 行长、松弛段距
+- **写作高效** —— 编辑态与阅读态共用同一变量组、活动行高亮、缩进参考线、模式切换零跳变
+- **快速定位** —— 标题色三级梯度（沙金 / 慕云紫 / 链接蓝）、琥珀加粗锚点、文件树与大纲当前项锚、父链高亮、调色板池色 Callout 语义系统
 
 ## 安装
 
@@ -16,7 +16,16 @@ MuYun（慕云）是一个围绕三支柱设计的 Obsidian 主题：
 
 ## 可选
 
-安装 [Style Settings](https://github.com/mgmeyers/obsidian-style-settings) 插件后可调：链接颜色、加粗锚点色、宽幅阅读模式。
+安装 [Style Settings](https://github.com/mgmeyers/obsidian-style-settings) 插件后可调：
+
+- 链接颜色、加粗锚点色
+- 行宽三档（40 / 46 / 52rem）
+- 深色「恢复 MuYun 灰紫」交互色
+- 效率模式（一键关闭全部动效）、动效提速档
+- 单项动效开关（hover 渐亮 / 文件夹展开 / 勾选弹入）
+- 搜索结果级联入场、活动段呼吸边（默认关）
+
+> 提示：深色交互强调色默认跟随 Obsidian 全局主题色（设置 → 外观 → 主题色）；不装 Style Settings 时以上均为设计默认值。
 
 ## License
 
