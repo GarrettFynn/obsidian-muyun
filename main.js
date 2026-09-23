@@ -170,7 +170,7 @@ class MuyunCompanionPlugin extends Plugin {
 		}
 		if (this.dimContainer !== previewEl) this.clearDim();
 
-		const blocks = Array.from(previewEl.children);
+		const blocks = this.resolveBlocks(previewEl);
 		if (!blocks.length) return;
 
 		/* 定位当前小节：以视口上 35% 为 reading line，取其上方最近的标题块 */
@@ -195,6 +195,21 @@ class MuyunCompanionPlugin extends Plugin {
 		}
 		previewEl.style.setProperty('--muyun-dim', String(this.settings.spotlightDim));
 		this.dimContainer = previewEl;
+	}
+
+	/* 分块定位：现代渲染链为 .markdown-preview-view > .markdown-preview-sizer > .el-* 块；
+	   顶层找不到标题块时逐层下钻（最多 3 层），兼容新旧渲染结构 */
+	resolveBlocks(previewEl) {
+		let blocks = Array.from((previewEl.querySelector('.markdown-preview-sizer') || previewEl).children);
+		let guard = 0;
+		while (blocks.length && !blocks.some(isHeadingBlock) && guard < 3) {
+			const next = blocks.map(function (b) { return Array.from(b.children); })
+				.find(function (a) { return a.some(isHeadingBlock); });
+			if (!next) break;
+			blocks = next;
+			guard++;
+		}
+		return blocks;
 	}
 
 	/* ── H8 侧缘小地图点轨（仅阅读视图；跟随滚动 + 点击跳转） ── */
