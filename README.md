@@ -19,6 +19,8 @@ MuYun（慕云）是一个围绕三支柱设计的 Obsidian 主题（v0.2.0）�
 安装 [Style Settings](https://github.com/mgmeyers/obsidian-style-settings) 插件后可调：
 
 - 链接颜色、加粗锚点色
+- 标题色三档（H1 / H2 慕云紫 / H3）、内联标题字号、段落间距
+- H2 路标条开关
 - 行宽三档（40 / 46 / 52rem）
 - 深色「恢复 MuYun 灰紫」交互色
 - 效率模式（一键关闭全部动效）、动效提速档

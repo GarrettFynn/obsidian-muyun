@@ -64,6 +64,41 @@ settings:
     title: 活动段呼吸边（默认关）
     type: class-toggle
     default: false
+  - id: muyun-h1-color
+    title: H1 标题色（深色基准，双态同值）
+    type: variable-color
+    format: hex
+    default: '#DDC79C'
+  - id: muyun-h2-color
+    title: H2 标题色（慕云紫）
+    type: variable-color
+    format: hex
+    default: '#525288'
+  - id: muyun-h3-color
+    title: H3 标题色（深色基准，双态同值）
+    type: variable-color
+    format: hex
+    default: '#93A5DE'
+  - id: inline-title-size
+    title: 内联标题字号
+    type: variable-number
+    format: 'em'
+    default: 2.0
+    min: 1.5
+    max: 2.6
+    step: 0.1
+  - id: p-spacing
+    title: 段落间距
+    type: variable-number
+    format: 'rem'
+    default: 0.9
+    min: 0.6
+    max: 1.4
+    step: 0.05
+  - id: muyun-no-stripe
+    title: 关闭 H2 路标条
+    type: class-toggle
+    default: false
 */
 
 /* ============ 深色 ── 墨蓝纸 ============ */
@@ -83,7 +118,9 @@ settings:
 	--link-color-hover: var(--text-accent);
 	--bold-color: #DDC79C;
 	--text-selection: rgba(126, 138, 204, 0.22);
-	--muyun-h2: #525288;
+	--muyun-h1-color: var(--bold-color);
+	--muyun-h2-color: #525288;
+	--muyun-h3-color: var(--link-color);
 
 	/* 派生锚（设计文档 §4 ◇ 值随批次落地） */
 	--muyun-border: rgba(255, 255, 255, 0.10);
@@ -123,7 +160,9 @@ settings:
 	--link-color-hover: var(--text-accent);
 	--bold-color: #8A6A30;
 	--text-selection: rgba(88, 78, 150, 0.12);
-	--muyun-h2: #525288;
+	--muyun-h1-color: var(--bold-color);
+	--muyun-h2-color: #525288;
+	--muyun-h3-color: var(--link-color);
 
 	--muyun-border: rgba(0, 0, 0, 0.10);
 	--muyun-border-strong: rgba(0, 0, 0, 0.22);
@@ -176,13 +215,13 @@ body.muyun-width-52 { --file-line-width: 52rem; }
 
 /* ============ 组件覆盖（变量解决不了的才到这里，按批次分组） ============ */
 
-/* ── B1 标题系统（Q1：仅染 H1–H3；双渲染层成对书写） ── */
+/* ── B1 标题系统（Q1：仅染 H1–H3；双渲染层成对书写；色值可经 Style Settings 覆盖） ── */
 .markdown-preview-view h1,
-.markdown-source-view.mod-cm6 .HyperMD-header-1 { color: var(--bold-color); }
+.markdown-source-view.mod-cm6 .HyperMD-header-1 { color: var(--muyun-h1-color); }
 .markdown-preview-view h2,
-.markdown-source-view.mod-cm6 .HyperMD-header-2 { color: var(--muyun-h2); }
+.markdown-source-view.mod-cm6 .HyperMD-header-2 { color: var(--muyun-h2-color); }
 .markdown-preview-view h3,
-.markdown-source-view.mod-cm6 .HyperMD-header-3 { color: var(--link-color); }
+.markdown-source-view.mod-cm6 .HyperMD-header-3 { color: var(--muyun-h3-color); }
 
 /* Q5：内联标题与 H1 拉开（字号走 --inline-title-size 变量；间距变量官方未提供，此处选择器） */
 .inline-title { margin-bottom: var(--muyun-inline-gap); }
@@ -194,10 +233,10 @@ body.muyun-width-52 { --file-line-width: 52rem; }
 	border-bottom: 1px solid var(--background-modifier-border);
 }
 
-/* ⑦c H2 路标条（B7 新提案·已拍板）：极速滚动时色块先于文字被捕捉 */
-.markdown-preview-view h2,
-.markdown-source-view.mod-cm6 .HyperMD-header-2 {
-	border-left: 3px solid var(--muyun-h2);
+/* ⑦c H2 路标条（B7 新提案·已拍板）：极速滚动时色块先于文字被捕捉；muyun-no-stripe 可关 */
+body:not(.muyun-no-stripe) .markdown-preview-view h2,
+body:not(.muyun-no-stripe) .markdown-source-view.mod-cm6 .HyperMD-header-2 {
+	border-left: 3px solid var(--muyun-h2-color);
 	padding-left: 10px;
 }
 
@@ -298,12 +337,34 @@ blockquote {
 .workspace-tab-header:not(.is-active) .workspace-tab-header-inner-title { color: var(--text-muted); }
 .workspace-tab-header:hover .workspace-tab-header-inner-title { color: var(--text-normal); }
 
-/* 大纲：缩进引导线（当前小节高亮与层级点色依赖核心 DOM，类名待 Phase 3 实测后补） */
+/* 大纲（B7；类名已按 Obsidian 树系统核对 .tree-item-self/-children + .is-active）：
+   引导线 + hover 渐亮 + 当前小节左条 + 层级点色（金/紫/蓝 = 标题色系） */
 .workspace-leaf-content[data-type="outline"] .tree-item-children {
 	margin-left: 12px;
 	padding-left: 6px;
 	border-left: 1px solid var(--muyun-border-strong);
 }
+.workspace-leaf-content[data-type="outline"] .tree-item-self {
+	transition: background-color var(--muyun-d1) var(--muyun-ease), color var(--muyun-d1) var(--muyun-ease);
+}
+.workspace-leaf-content[data-type="outline"] .tree-item-self:hover { background-color: var(--muyun-hover); }
+.workspace-leaf-content[data-type="outline"] .tree-item-self.is-active {
+	color: var(--text-normal);
+	font-weight: 600;
+	background-color: var(--muyun-hover);
+	box-shadow: inset 2px 0 0 var(--text-accent);
+}
+.workspace-leaf-content[data-type="outline"] .tree-item-self::before {
+	content: "";
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: var(--muyun-h1-color);
+	flex: none;
+	margin-right: 2px;
+}
+.workspace-leaf-content[data-type="outline"] .tree-item-children .tree-item-self::before { background: var(--muyun-h2-color); }
+.workspace-leaf-content[data-type="outline"] .tree-item-children .tree-item-children .tree-item-self::before { background: var(--muyun-h3-color); }
 
 /* 快速切换器 / 命令面板：键盘选中行左条（B7-⑨） */
 .suggestion-item {
@@ -446,8 +507,14 @@ body.muyun-fx-breathe .markdown-source-view.mod-cm6 .cm-line.cm-active {
 	animation: muyun-breathe 2.4s ease-in-out infinite;
 }
 
-/* H5 折叠段落平滑展开：接管原生折叠存在时序兼容风险，Phase 3 验证通过后实现（暂缺） */
-/* ⑦e 折叠标题态：类名待 Phase 3 实测后补 */
+/* ⑦e 折叠标题态（类名已核对：.collapse-indicator + .is-collapsed）：折叠行降透明 */
+.markdown-source-view.mod-cm6 .HyperMD-header { transition: opacity 0.15s var(--muyun-ease); }
+.markdown-source-view.mod-cm6 .HyperMD-header.is-collapsed { opacity: 0.45; }
+@supports selector(:has(*)) {
+	.markdown-source-view.mod-cm6 .HyperMD-header:has(.collapse-indicator.is-collapsed) { opacity: 0.45; }
+}
+
+/* H5 折叠段落平滑展开：终判——CM6 折叠靠移除行节点实现，非 CSS 状态切换，纯 CSS 无法动画；转配套插件候选（Phase 5+） */
 
 /* ── 一键全关：效率模式 + 系统减弱动态效果 ── */
 body.muyun-lite *, body.muyun-lite *::before, body.muyun-lite *::after {
