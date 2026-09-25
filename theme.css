@@ -95,6 +95,18 @@ settings:
     min: 0.6
     max: 1.4
     step: 0.05
+  - id: muyun-contrast
+    title: 正文对比度（柔和 / 标准 / 扎实）
+    type: class-select
+    allowEmpty: false
+    default: muyun-contrast-standard
+    options:
+      - label: 柔和 Soft（约 8.5:1，更护眼）
+        value: muyun-contrast-soft
+      - label: 标准 Standard（默认 ≈10:1）
+        value: muyun-contrast-standard
+      - label: 扎实 Firm（约 12.5:1，更清晰）
+        value: muyun-contrast-firm
   - id: muyun-no-stripe
     title: 关闭 H2 路标条
     type: class-toggle
@@ -523,6 +535,62 @@ body.muyun-lite *, body.muyun-lite *::before, body.muyun-lite *::after {
 }
 @media (prefers-reduced-motion: reduce) {
 	*, *::before, *::after { transition: none !important; animation: none !important; }
+}
+
+/* ── v0.4 嵌入（transclusion ![[笔记]]）：左条 + 微底，标示「这是引来的内容」 ── */
+.markdown-embed {
+	border-left: 3px solid var(--text-accent);
+	background-color: var(--muyun-hover);
+	border-radius: 6px;
+	padding: 0.35em 0.85em;
+	margin: 0 0 0.9em;
+}
+.markdown-embed .markdown-embed-title { font-weight: 600; }
+.markdown-embed-link { color: var(--text-faint); }
+.markdown-embed-link:hover { color: var(--text-accent); }
+
+/* ── v0.4 表格 hover 行高亮：宽表横向扫行不丢线 ── */
+.markdown-preview-view tbody td { transition: background-color var(--muyun-d1) var(--muyun-ease); }
+.markdown-preview-view tbody tr:hover td { background-color: var(--muyun-hover); }
+
+/* ── v0.4 正文对比度三档（标准 = 不挂类；仅动 --text-normal，锚点色不变） ── */
+body.muyun-contrast-soft.theme-dark  { --text-normal: #AFB3C2; }
+body.muyun-contrast-firm.theme-dark  { --text-normal: #D6D8E0; }
+body.muyun-contrast-soft.theme-light { --text-normal: #55555F; }
+body.muyun-contrast-firm.theme-light { --text-normal: #2C2C33; }
+
+/* ── v0.4 PDF 导出 / 打印：强制纸底深字——暗色主题不再产出深底 PDF ── */
+@media print {
+	.theme-dark, .theme-light {
+		--background-primary: #ffffff;
+		--background-secondary: #ffffff;
+		--text-normal: #1F1F24;
+		--text-muted: #5A5A64;
+		--text-faint: #8A8A93;
+		--text-accent: #4A3A7E;
+		--interactive-accent: #4A3A7E;
+		--link-color: #2F5AA8;
+		--bold-color: #6B5200;
+		--text-highlight-bg: #FFF3C4;
+		--code-background: #F5F5F0;
+		--tag-background: #EFEBE3;
+		--muyun-hover: transparent;
+		--muyun-border: #D8D8D2;
+		--muyun-border-strong: #B8B8B0;
+		--background-modifier-border: #D8D8D2;
+	}
+	.markdown-preview-view tbody tr:hover td { background-color: transparent; }
+}
+
+/* ── v0.4 移动端 / 窄屏：行长自适应 + 密度收紧（Phase 3 窄窗口基线） ── */
+@media (max-width: 750px) {
+	body {
+		--file-line-width: min(40rem, 92vw);
+		--inline-title-size: 1.7em;
+		--p-spacing: 0.75rem;
+	}
+	.markdown-preview-view h2 { padding-left: 8px; }
+	.nav-folder-children { margin-left: 8px; padding-left: 5px; }
 }
 
 /* 注：v0.1 的 .muyun-wide（50rem 宽幅档）已由「行宽三档」muyun-width-52 替代（Q3 定稿）。 */
