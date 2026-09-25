@@ -31,13 +31,19 @@ const DEFAULT_SETTINGS = {
 	readTime: true,         /* 状态栏阅读时长估计 */
 	editorFocus: false,     /* 编辑态段落聚焦（写作聚光灯，默认关） */
 	typewriter: false,      /* 打字机滚动（默认关） */
-	finishGlow: true        /* 读完柔光（一次性彩蛋） */
+	finishGlow: true,       /* 读完柔光（一次性彩蛋） */
+	statsEnabled: false,    /* 本地阅读统计（默认关） */
+	dailyGoalMin: 30        /* 每日阅读目标（分钟，0 = 关） */
 };
 
 const HEADING_SEL = 'h1, h2, h3, h4, h5, h6';
 const HEADING_SCOPE_SEL = HEADING_SEL.split(', ').map(function (s) { return ':scope > ' + s; }).join(', ');
 const STORE_KEY = 'muyun-companion.readpos.v1';
 const STORE_MAX = 400;
+const STATS_KEY = 'muyun-companion.stats.v1';
+const STATS_DAYS_MAX = 120;
+const STATS_NOTES_MAX = 200;
+const STATS_IDLE_MS = 90000;   /* 距上次交互超过此值不计入阅读时长 */
 
 function isHeadingBlock(el) {
 	return el.matches(HEADING_SEL) || !!el.querySelector(HEADING_SCOPE_SEL);
@@ -65,7 +71,10 @@ class MuyunCompanionPlugin extends Plugin {
 		this.timeEl = this.addStatusBarItem();
 		this.crumbEl.addClass('muyun-crumb');
 		this.timeEl.addClass('muyun-readtime');
+		this.statsEl = this.addStatusBarItem();
+		this.statsEl.addClass('muyun-stats');
 		this.loadStore();
+		this.loadStats();
 
 		this.addSettingTab(new MuyunCompanionSettingTab(this.app, this));
 
@@ -84,9 +93,29 @@ class MuyunCompanionPlugin extends Plugin {
 			callback: () => this.toggle(pair[1])
 		}));
 
+		this.addCommand({
+			name: '复制当前小节链接 Copy link to current section',
+			callback: () => this.copyHeadingLink()
+		});
+		this.addCommand({
+			name: '查看本周阅读统计 Weekly reading stats',
+			callback: () => this.showWeeklyStats()
+		});
+		this.addCommand({
+			name: '清除阅读统计 Clear reading stats',
+			callback: () => this.clearStats()
+		});
+		this.addCommand({
+			name: '重置当前笔记阅读轨迹 Reset read trail of current note',
+			callback: () => this.resetTrail()
+		});
+
 		/* H1 进度条挂在 body 上，全生命周期存在，按需显隐 */
 		this.initBar();
 		this.register(() => this.clearRail());
+
+		/* v0.4 阅读统计：30s 心跳采样；距上次交互 >90s 的空闲不计入 */
+		this.registerInterval(window.setInterval(() => this.statsTick(), 30000));
 
 		/* 编辑态段落聚焦 / 打字机滚动（CM6 编辑器扩展；能力缺失或未开启时为空操作） */
 		if (CM_OK) this.registerEditorExtension(this.buildCmExtension());
@@ -115,6 +144,7 @@ class MuyunCompanionPlugin extends Plugin {
 		this.clearDim();
 		this.crumbEl.empty();
 		this.timeEl.empty();
+		this.statsEl.empty();
 	}
 
 	async saveSettings() {
@@ -126,14 +156,14 @@ class MuyunCompanionPlugin extends Plugin {
 	toggle(key) {
 		this.settings[key] = !this.settings[key];
 		this.saveSettings();
-		new Notice('MuYun Companion：' + this.label(key) + '已' + (this.settings[key] ? '开启' : '关闭'));
+		new Notice('MuYun Companion：' + this.label(key) + ' ' + (this.settings[key] ? '已开启 · on' : '已关闭 · off'));
 	}
 
 	label(key) {
 		return {
-			progressBar: '阅读进度条', spotlight: '阅读聚光灯', minimap: '侧缘小地图',
-			breadcrumb: '标题面包屑', resumeReading: '续读记忆',
-			editorFocus: '编辑态段落聚焦', typewriter: '打字机滚动'
+			progressBar: '阅读进度条 Progress bar', spotlight: '阅读聚光灯 Spotlight', minimap: '侧缘小地图 Minimap',
+			breadcrumb: '标题面包屑 Breadcrumb', resumeReading: '续读记忆 Resume reading',
+			editorFocus: '编辑态段落聚焦 Paragraph focus', typewriter: '打字机滚动 Typewriter'
 		}[key] || key;
 	}
 
@@ -165,6 +195,7 @@ class MuyunCompanionPlugin extends Plugin {
 	}
 
 	onScroll() {
+		this.markActive();
 		if (this.raf) return;
 		this.raf = requestAnimationFrame(() => {
 			this.raf = 0;
@@ -174,6 +205,183 @@ class MuyunCompanionPlugin extends Plugin {
 			this.updateBreadcrumb();
 			this.saveCurrentPosSoon();
 		});
+	}
+
+	/* ═══ v0.4 本地阅读统计（默认关；纯 localStorage，空闲 90s 不计） ═══ */
+	markActive() {
+		this._lastAct = Date.now();
+		if (!this._lastTick) this._lastTick = this._lastAct;
+	}
+
+	loadStats() {
+		try {
+			this.stats = JSON.parse(localStorage.getItem(STATS_KEY) || '{}') || {};
+		} catch (e) { this.stats = {}; }
+		if (!this.stats.days) this.stats.days = {};
+		if (!this.stats.notes) this.stats.notes = {};
+		if (!this.stats.goal) this.stats.goal = {};
+	}
+
+	saveStatsSoon() {
+		clearTimeout(this._statsT);
+		this._statsT = setTimeout(() => {
+			try { localStorage.setItem(STATS_KEY, JSON.stringify(this.stats)); } catch (e) { /* 存储满时静默丢弃 */ }
+		}, 500);
+	}
+
+	statsDateKey(ts) {
+		const d = new Date(ts);
+		const p = function (n) { return (n < 10 ? '0' : '') + n; };
+		return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+	}
+
+	statsTick() {
+		if (!this.settings.statsEnabled) return;
+		const now = Date.now();
+		if (!this._lastAct || !this._lastTick) { this._lastTick = now; return; }
+		const gap = now - this._lastAct;
+		if (gap > STATS_IDLE_MS) { this._lastTick = now; return; }  /* 空闲段不计 */
+		const dt = Math.min(now - this._lastTick, STATS_IDLE_MS);
+		this._lastTick = now;
+		if (dt < 1000) return;
+		this.addReadSecs(dt / 1000, now);
+	}
+
+	addReadSecs(sec, now) {
+		const key = this.statsDateKey(now);
+		this.stats.days[key] = (this.stats.days[key] || 0) + sec;
+		const file = this.app.workspace.getActiveFile();
+		if (file) {
+			const rec = this.stats.notes[file.path] || (this.stats.notes[file.path] = { sec: 0, ts: 0 });
+			rec.sec += sec;
+			rec.ts = now;
+		}
+		this.pruneStats(now);
+		this.updateStatsStatus();
+		this.checkGoal(key, now);
+		this.saveStatsSoon();
+	}
+
+	pruneStats(now) {
+		const dayKeys = Object.keys(this.stats.days).sort();
+		while (dayKeys.length > STATS_DAYS_MAX) delete this.stats.days[dayKeys.shift()];
+		const noteKeys = Object.keys(this.stats.notes);
+		if (noteKeys.length > STATS_NOTES_MAX) {
+			noteKeys.sort((a, b) => (this.stats.notes[a].ts || 0) - (this.stats.notes[b].ts || 0));
+			while (noteKeys.length > STATS_NOTES_MAX) delete this.stats.notes[noteKeys.shift()];
+		}
+	}
+
+	updateStatsStatus() {
+		if (!this.statsEl) return;
+		if (!this.settings.statsEnabled) { this.statsEl.setText(''); return; }
+		const today = this.stats.days[this.statsDateKey(Date.now())] || 0;
+		const min = Math.floor(today / 60);
+		const goal = this.settings.dailyGoalMin;
+		this.statsEl.setText(goal > 0 ? ('📖 ' + min + '/' + goal + 'm') : ('📖 ' + min + 'm'));
+	}
+
+	checkGoal(dayKey) {
+		const goal = this.settings.dailyGoalMin;
+		if (goal <= 0 || this.stats.goal[dayKey]) return;
+		if ((this.stats.days[dayKey] || 0) >= goal * 60) {
+			this.stats.goal[dayKey] = true;
+			new Notice('MuYun Companion：今日阅读目标达成 · Daily goal reached 🎉');
+			this.saveStatsSoon();
+		}
+	}
+
+	/* 周报纯函数：本周合计/今天/最常读三篇（分钟） */
+	summarizeWeek(stats, now) {
+		const out = { week: 0, today: 0, top: [] };
+		const todayKey = this.statsDateKey(now);
+		const dow = new Date(now).getDay();
+		const monday = now - ((dow === 0 ? 6 : dow - 1) * 86400000);
+		const mondayKey = this.statsDateKey(monday);
+		Object.keys(stats.days || {}).forEach(function (k) {
+			if (k >= mondayKey) out.week += stats.days[k];
+			if (k === todayKey) out.today = stats.days[k];
+		});
+		out.top = Object.keys(stats.notes || {})
+			.map(function (p) { return { path: p, sec: stats.notes[p].sec }; })
+			.sort(function (a, b) { return b.sec - a.sec; })
+			.slice(0, 3);
+		return out;
+	}
+
+	showWeeklyStats() {
+		const s = this.summarizeWeek(this.stats, Date.now());
+		const fm = function (sec) { return Math.round(sec / 60) + ' 分钟'; };
+		const lines = ['本周合计：' + fm(s.week), '今天：' + fm(s.today)];
+		if (s.top.length) {
+			lines.push('最常读：');
+			s.top.forEach(function (t) {
+				const name = t.path.split('/').pop().replace(/\.md$/i, '');
+				lines.push('  · ' + name + ' — ' + fm(t.sec));
+			});
+		}
+		new Notice('MuYun Companion · 阅读统计 Reading stats\n' + lines.join('\n'), 6000);
+	}
+
+	clearStats() {
+		this.stats = { days: {}, notes: {}, goal: {} };
+		try { localStorage.removeItem(STATS_KEY); } catch (e) { /* 忽略 */ }
+		this.updateStatsStatus();
+		new Notice('MuYun Companion：阅读统计已清除 · Stats cleared');
+	}
+
+	resetTrail() {
+		const file = this.app.workspace.getActiveFile();
+		if (!file) return;
+		delete this.store[file.path];
+		this.railMaxRead = -1;
+		this.saveStoreSoon();
+		this.updateRail();
+		new Notice('MuYun Companion：已重置本笔记阅读轨迹 · Trail reset');
+	}
+
+	/* ═══ v0.4 复制当前小节链接（与面包屑共用祖先链） ═══ */
+	currentChain(hs, cur) {
+		const chain = [];
+		let lvl = 99;
+		for (let i = cur; i >= 0; i--) {
+			if (hs[i].level < lvl) {
+				chain.unshift(hs[i]);
+				lvl = hs[i].level;
+				if (lvl === 1) break;
+			}
+		}
+		if (chain[chain.length - 1] !== hs[cur]) chain.push(hs[cur]);
+		return chain;
+	}
+
+	buildHeadingLink(baseName, heading) {
+		return heading ? '[[' + baseName + '#' + heading + ']]' : '[[' + baseName + ']]';
+	}
+
+	copyHeadingLink() {
+		const file = this.app.workspace.getActiveFile();
+		const view = this.activeMarkdownView();
+		if (!file || !view) return;
+		const hs = this.headingInfos(view);
+		let heading = '';
+		if (hs.length) {
+			const container = this.scrollElOf(view);
+			if (container) {
+				const baseTop = container.getBoundingClientRect().top;
+				let cur = 0;
+				hs.forEach(function (h, i) {
+					if (h.el.getBoundingClientRect().top - baseTop <= container.clientHeight * 0.35) cur = i;
+				});
+				/* 交互场景下取链尾更符合直觉：在标题行上则取该标题，否则取当前小节 */
+				heading = (hs[cur] && hs[cur].text) || '';
+			}
+		}
+		const link = this.buildHeadingLink(file.basename, heading);
+		const done = function () { new Notice('MuYun Companion：已复制 · Copied\n' + link); };
+		if (navigator.clipboard && navigator.clipboard.writeText) {
+			navigator.clipboard.writeText(link).then(done, function () { done(); });
+		} else { done(); }
 	}
 
 	/* ═══ H1 顶部阅读进度条 ═══ */
@@ -546,13 +754,8 @@ class MuyunCompanionPlugin extends Plugin {
 			if (h.el.getBoundingClientRect().top - baseTop <= container.clientHeight * 0.35) cur = i;
 		});
 
-		/* 祖先链：从当前标题向上收集层级递减的标题，再确保自身在末位 */
-		const chain = [];
-		let lvl = 99;
-		for (let i = cur; i >= 0; i--) {
-			if (hs[i].level < lvl) { chain.unshift(hs[i]); lvl = hs[i].level; if (lvl === 1) break; }
-		}
-		if (chain[chain.length - 1] !== hs[cur]) chain.push(hs[cur]);
+		/* 祖先链（与「复制小节链接」共用） */
+		const chain = this.currentChain(hs, cur);
 
 		let text = chain.map(function (c) { return c.text || '（无标题）'; }).join(' › ');
 		if (text.length > 64) text = '…' + text.slice(-63);
@@ -641,7 +844,8 @@ class MuyunCompanionPlugin extends Plugin {
 		if (!coords) return;
 		const rect = view.scrollDOM.getBoundingClientRect();
 		const delta = coords.top - (rect.top + rect.height * 0.33);
-		if (Math.abs(delta) > 24) view.scrollDOM.scrollTop += delta;
+		/* v0.4 平滑化：短动画滚到目标位，替代瞬时跳位 */
+		if (Math.abs(delta) > 24) view.scrollDOM.scrollBy({ top: delta, behavior: 'smooth' });
 	}
 
 	/* ═══ 收尾 ═══ */
@@ -712,6 +916,20 @@ class MuyunCompanionSettingTab extends PluginSettingTab {
 			.setDesc('单篇笔记首次读到结尾时，进度条柔光一次。')
 			.addToggle(t => t.setValue(p.settings.finishGlow)
 				.onChange(async v => { p.settings.finishGlow = v; await p.saveSettings(); }));
+
+		new Setting(containerEl)
+			.setName('阅读统计 · Reading stats')
+			.setDesc('本地记录每天/每篇的阅读时长（空闲 90 秒不计入），状态栏显示今日进度。纯本地存储，默认关。')
+			.addToggle(t => t.setValue(p.settings.statsEnabled)
+				.onChange(async v => { p.settings.statsEnabled = v; await p.saveSettings(); p.updateStatsStatus(); }));
+
+		new Setting(containerEl)
+			.setName('每日阅读目标 · Daily goal')
+			.setDesc('达成后在状态栏与通知中标记；0 = 关闭目标。')
+			.addSlider(s => s.setLimits(0, 120, 5)
+				.setValue(p.settings.dailyGoalMin)
+				.setDynamicTooltip()
+				.onChange(async v => { p.settings.dailyGoalMin = v; await p.saveSettings(); p.updateStatsStatus(); }));
 
 		containerEl.createEl('h3', { text: '写作 Writing' });
 

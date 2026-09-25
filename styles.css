@@ -94,6 +94,7 @@
 }
 .status-bar .muyun-crumb:hover { color: var(--text-normal); }
 .status-bar .muyun-readtime { color: var(--text-faint); cursor: default; }
+.status-bar .muyun-stats { color: var(--text-muted); cursor: default; }
 
 /* 编辑态段落聚焦（CM6 行装饰） */
 .cm-line { transition: opacity 0.2s ease; }
@@ -106,3 +107,9 @@
 	100% { box-shadow: 0 0 6px var(--text-accent, #b1aad8); }
 }
 .muyun-progress-fill.muyun-glow { animation: muyun-finish-glow 0.9s ease; }
+
+/* v0.4 移动端 / 窄屏：点轨与聚光灯让位（与主题 750px 断点一致） */
+@media (max-width: 750px) {
+	.muyun-rail { display: none; }
+	.markdown-preview-view .muyun-dim { opacity: 1; }
+}
