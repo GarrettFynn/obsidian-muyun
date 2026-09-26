@@ -9,7 +9,7 @@
    纯 JavaScript（无构建链），CommonJS 引用运行时 obsidian 模块。
    设计文档：《MuYun 设计文档 v0.3》§7；样式走主题 CSS 变量，主题缺席时优雅降级。 */
 
-const { Plugin, PluginSettingTab, Setting, MarkdownView, Notice, debounce } = require('obsidian');
+const { Plugin, PluginSettingTab, Setting, MarkdownView, Modal, Notice, debounce } = require('obsidian');
 
 /* CM6 能力探测：段落聚焦与打字机滚动依赖 EditorView 体系；旧版缺失时自动禁用这两项 */
 const obs = require('obsidian');
@@ -100,6 +100,10 @@ class MuyunCompanionPlugin extends Plugin {
 		this.addCommand({
 			name: '查看本周阅读统计 Weekly reading stats',
 			callback: () => this.showWeeklyStats()
+		});
+		this.addCommand({
+			name: '查看阅读热图 Reading heatmap',
+			callback: () => new MuyunHeatmapModal(this.app, this).open()
 		});
 		this.addCommand({
 			name: '清除阅读统计 Clear reading stats',
@@ -289,6 +293,30 @@ class MuyunCompanionPlugin extends Plugin {
 			new Notice('MuYun Companion：今日阅读目标达成 · Daily goal reached 🎉');
 			this.saveStatsSoon();
 		}
+	}
+
+	/* 热图分桶：秒 → 强度档（0 / <10min / <30min / <60min / ≥60min） */
+	heatClass(sec) {
+		if (!sec || sec <= 0) return '';
+		const min = sec / 60;
+		if (min < 10) return 'l1';
+		if (min < 30) return 'l2';
+		if (min < 60) return 'l3';
+		return 'l4';
+	}
+
+	/* 连续达成天数：从今天（或今天为 0 时从昨天）向前数有阅读的天数 */
+	calcStreak(now) {
+		const DAY = 86400000;
+		let start = now;
+		if (!(this.stats.days[this.statsDateKey(now)] > 0)) start = now - DAY;
+		let streak = 0;
+		for (let t = start; ; t -= DAY) {
+			if (this.stats.days[this.statsDateKey(t)] > 0) streak++;
+			else break;
+			if (streak > 3650) break; /* 防御上限 */
+		}
+		return streak;
 	}
 
 	/* 周报纯函数：本周合计/今天/最常读三篇（分钟） */
@@ -952,6 +980,76 @@ class MuyunCompanionSettingTab extends PluginSettingTab {
 				'所有效果均可用命令面板「切换…」或快捷键控制。'
 		});
 		notes.style.cssText = 'color:var(--text-muted);font-size:12px;';
+	}
+}
+
+/* ── v0.5 阅读热图弹窗（12 周 × 7 天，周一为列首；数据 = stats.days） ── */
+class MuyunHeatmapModal extends Modal {
+	constructor(app, plugin) {
+		super(app);
+		this.plugin = plugin;
+	}
+
+	onOpen() {
+		const { contentEl } = this;
+		const p = this.plugin;
+		const now = Date.now();
+		const DAY = 86400000;
+		contentEl.addClass('muyun-heatmap-modal');
+		contentEl.createEl('h3', { text: '阅读热图 · Reading heatmap（近 12 周）' });
+
+		if (!p.settings.statsEnabled) {
+			const hint = contentEl.createEl('p', {
+				text: '阅读统计当前关闭，热图显示的是历史遗留数据。到设置里开启「阅读统计」后开始积累。'
+			});
+			hint.style.cssText = 'color:var(--text-muted);font-size:12px;';
+		}
+
+		const grid = contentEl.createDiv('muyun-heatmap');
+		/* 列 = 周（左旧右新），行 = 周一…周日；末列对齐本周 */
+		const today = new Date(now);
+		const dow = today.getDay() === 0 ? 6 : today.getDay() - 1; /* 周一=0 */
+		const monday = now - dow * DAY;
+		const start = monday - 11 * 7 * DAY;
+		for (let row = 0; row < 7; row++) {
+			for (let w = 0; w < 12; w++) {
+				const ts = start + (w * 7 + row) * DAY;
+				const key = p.statsDateKey(ts);
+				const cell = grid.createDiv('muyun-heat-cell');
+				if (ts > now) { cell.addClass('future'); continue; }
+				const cls = p.heatClass(p.stats.days[key]);
+				if (cls) cell.addClass(cls);
+				const min = Math.round((p.stats.days[key] || 0) / 60);
+				cell.setAttribute('title', key + ' · ' + (min > 0 ? min + ' 分钟' : '无阅读'));
+			}
+		}
+
+		const s = p.summarizeWeek(p.stats, now);
+		const fm = function (sec) { return Math.round(sec / 60); };
+		const side = contentEl.createDiv('muyun-heat-side');
+		const fmtMin = function (sec) { return Math.round(sec / 60) + ' 分钟'; };
+		side.createEl('div', { text: '本周 ' + fm(s.week) + ' 分钟' }).addClass('hm-big');
+		side.createEl('div', { text: '今天 ' + fmtMin(s.today) + (p.settings.dailyGoalMin > 0 ? ' / 目标 ' + p.settings.dailyGoalMin + ' 分钟' : '') });
+		side.createEl('div', { text: '连续达成 ' + p.calcStreak(now) + ' 天' });
+		if (s.top.length) {
+			const top = side.createEl('div', { text: '最常读：' });
+			top.addClass('hm-top');
+			s.top.forEach(function (t) {
+				const name = t.path.split('/').pop().replace(/\.md$/i, '');
+				side.createEl('div', { text: '· ' + name + ' — ' + fmtMin(t.sec) });
+			});
+		}
+
+		const legend = contentEl.createDiv('muyun-heat-legend');
+		legend.createSpan({ text: '少' });
+		['', 'l1', 'l2', 'l3', 'l4'].forEach(function (c) {
+			legend.createDiv('muyun-heat-cell' + (c ? ' ' + c : ''));
+		});
+		legend.createSpan({ text: '多' });
+	}
+
+	onClose() {
+		this.contentEl.empty();
 	}
 }
 

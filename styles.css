@@ -113,3 +113,38 @@
 	.muyun-rail { display: none; }
 	.markdown-preview-view .muyun-dim { opacity: 1; }
 }
+
+/* ── v0.5 阅读热图弹窗 ── */
+.muyun-heatmap-modal h3 { margin: 0 0 10px; }
+.muyun-heatmap {
+	display: grid;
+	grid-template-rows: repeat(7, 14px);
+	grid-auto-flow: column;
+	grid-auto-columns: 14px;
+	gap: 3px;
+	margin-bottom: 12px;
+}
+.muyun-heat-cell {
+	width: 14px;
+	height: 14px;
+	border-radius: 3px;
+	background: var(--text-accent, #8a5cf5);
+	opacity: 0.15;
+}
+.muyun-heat-cell.empty { background: var(--background-modifier-border); opacity: 1; }
+.muyun-heat-cell.l1 { opacity: 0.3; }
+.muyun-heat-cell.l2 { opacity: 0.5; }
+.muyun-heat-cell.l3 { opacity: 0.72; }
+.muyun-heat-cell.l4 { opacity: 1; }
+.muyun-heat-cell.future { background: transparent; opacity: 0; }
+.muyun-heat-side { font-size: 12.5px; color: var(--text-muted); line-height: 1.9; margin-bottom: 10px; }
+.muyun-heat-side .hm-big { font-size: 16px; font-weight: 600; color: var(--text-normal); }
+.muyun-heat-side .hm-top { margin-top: 4px; }
+.muyun-heat-legend {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 11px;
+	color: var(--text-faint);
+}
+.muyun-heat-legend .muyun-heat-cell { width: 11px; height: 11px; }
