@@ -111,6 +111,26 @@ settings:
     title: 关闭 H2 路标条
     type: class-toggle
     default: false
+  - id: muyun-hnum
+    title: 标题自动编号（H1→1 / H2→1.1 / H3→1.1.1）
+    type: class-toggle
+    default: false
+  - id: muyun-zebra
+    title: 表格斑马纹（偶数行微底）
+    type: class-toggle
+    default: false
+  - id: muyun-imgcard
+    title: 图片圆角卡片
+    type: class-toggle
+    default: false
+  - id: muyun-tabcard
+    title: 标签页圆角卡片化
+    type: class-toggle
+    default: false
+  - id: muyun-lnum
+    title: 代码块行号（仅阅读视图）
+    type: class-toggle
+    default: false
 */
 
 /* ============ 深色 ── 墨蓝纸 ============ */
@@ -245,9 +265,10 @@ body.muyun-width-52 { --file-line-width: 52rem; }
 	border-bottom: 1px solid var(--background-modifier-border);
 }
 
-/* ⑦c H2 路标条（B7 新提案·已拍板）：极速滚动时色块先于文字被捕捉；muyun-no-stripe 可关 */
-body:not(.muyun-no-stripe) .markdown-preview-view h2,
-body:not(.muyun-no-stripe) .markdown-source-view.mod-cm6 .HyperMD-header-2 {
+/* ⑦c H2 路标条（B7 新提案·已拍板）：极速滚动时色块先于文字被捕捉；muyun-no-stripe 可关；
+   与标题自动编号互斥（muyun-hnum 开启时自动收条，避免三层信息叠加） */
+body:not(.muyun-no-stripe):not(.muyun-hnum) .markdown-preview-view h2,
+body:not(.muyun-no-stripe):not(.muyun-hnum) .markdown-source-view.mod-cm6 .HyperMD-header-2 {
 	border-left: 3px solid var(--muyun-h2-color);
 	padding-left: 10px;
 }
@@ -591,6 +612,85 @@ body.muyun-contrast-firm.theme-light { --text-normal: #2C2C33; }
 	}
 	.markdown-preview-view h2 { padding-left: 8px; }
 	.nav-folder-children { margin-left: 8px; padding-left: 5px; }
+}
+
+/* ── v0.5 锦上添花批（S1–S5，全部默认关，Style Settings 独立开关） ── */
+
+/* S1 表格斑马纹（打印态经 --muyun-hover:transparent 自动豁免） */
+body.muyun-zebra .markdown-rendered tbody tr:nth-child(even) td {
+	background-color: var(--muyun-hover);
+}
+
+/* S2 图片圆角卡片（表情与 UI 图标豁免） */
+body.muyun-imgcard .markdown-rendered img:not(.emoji) {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	padding: 6px;
+	background: var(--background-secondary);
+	box-sizing: border-box;
+}
+
+/* S3 标签页圆角卡片化（活动标签浮起为卡片；accent 下划线保留） */
+body.muyun-tabcard .workspace-tab-header {
+	border: 1px solid transparent;
+	border-radius: 8px 8px 0 0;
+}
+body.muyun-tabcard .workspace-tab-header:not(.is-active):hover {
+	background-color: var(--muyun-hover);
+}
+body.muyun-tabcard .workspace-tab-header.is-active {
+	background-color: var(--background-secondary);
+	border-color: var(--background-modifier-border);
+	border-bottom-color: var(--background-secondary);
+}
+body.muyun-tabcard .workspace-tab-header.is-active::after { left: 8px; right: 8px; }
+
+/* S4 标题自动编号（仅阅读视图：实时预览 CM6 虚拟化会数错行，刻意不实现；
+   内联标题与 H4 以下不参与；与路标条互斥见上方选择器） */
+body.muyun-hnum .markdown-preview-view { counter-reset: muyun-h1; }
+body.muyun-hnum .markdown-preview-view h1 {
+	counter-reset: muyun-h2;
+	counter-increment: muyun-h1;
+}
+body.muyun-hnum .markdown-preview-view h1::before {
+	content: counter(muyun-h1) ". ";
+	color: var(--text-faint);
+}
+body.muyun-hnum .markdown-preview-view h2 {
+	counter-reset: muyun-h3;
+	counter-increment: muyun-h2;
+}
+body.muyun-hnum .markdown-preview-view h2::before {
+	content: counter(muyun-h1) "." counter(muyun-h2) "  ";
+	color: var(--muyun-h2-color);
+	opacity: 0.75;
+}
+body.muyun-hnum .markdown-preview-view h3 {
+	counter-increment: muyun-h3;
+}
+body.muyun-hnum .markdown-preview-view h3::before {
+	content: counter(muyun-h1) "." counter(muyun-h2) "." counter(muyun-h3) "  ";
+	color: var(--muyun-h3-color);
+	opacity: 0.75;
+}
+
+/* S5 代码块行号（仅阅读视图；理由同 S4。空行是否带 .cl 随版本有差异，Phase 3 盯） */
+body.muyun-lnum .markdown-preview-view pre code { counter-reset: muyun-ln; }
+body.muyun-lnum .markdown-preview-view pre code .cl {
+	display: block;
+	padding-left: 3.4em;
+	position: relative;
+}
+body.muyun-lnum .markdown-preview-view pre code .cl::before {
+	counter-increment: muyun-ln;
+	content: counter(muyun-ln);
+	position: absolute;
+	left: 0;
+	width: 2.4em;
+	text-align: right;
+	color: var(--text-faint);
+	border-right: 1px solid var(--background-modifier-border);
+	margin-right: 0.8em;
 }
 
 /* 注：v0.1 的 .muyun-wide（50rem 宽幅档）已由「行宽三档」muyun-width-52 替代（Q3 定稿）。 */
