@@ -14,7 +14,13 @@
 
 ## Screenshots
 
-<!-- TODO(before release): add dark note view / light note view / workspace panorama -->
+**Light — 晨光暖纸**
+
+![MuYun light mode](screenshots/light.png)
+
+**Dark — 墨蓝夜空**
+
+![MuYun dark mode](screenshots/dark.png)
 
 ## Install
 
