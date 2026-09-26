@@ -27,7 +27,7 @@
 
 ## Style Settings
 
-With the [Style Settings](https://github.com/mgmeyers/obsidian-style-settings) plugin you can tune: link / bold / heading colors, inline title size, paragraph spacing, line-width presets (40/46/52rem), body contrast presets (soft/standard/firm), H2 stripe toggle, legacy dark accent, efficiency mode, motion speed and per-effect switches.
+With the [Style Settings](https://github.com/mgmeyers/obsidian-style-settings) plugin you can tune: link / bold / heading colors, inline title size, paragraph spacing, line-width presets (40/46/52rem), body contrast presets (soft/standard/firm), H2 stripe toggle, zebra table stripes, image cards, tab cards, heading auto-numbering, code line numbers (opt-in, reading view), legacy dark accent, efficiency mode, motion speed and per-effect switches.
 
 > Note: the dark interactive accent follows your Obsidian global accent color by design.
 
