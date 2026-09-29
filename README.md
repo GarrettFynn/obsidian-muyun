@@ -5,6 +5,8 @@
 
 **[English](#overview)** · [中文](#概述-overview)
 
+> 🖥 **Also available for Typora** → [typora-muyun](https://github.com/GarrettFynn/typora-muyun) — the same design as a Typora theme (light / dark / wide variants). 同一设计的 Typora 版主题（浅色 / 深色 / 宽幅变体）。
+
 ---
 
 ## Overview 概述
