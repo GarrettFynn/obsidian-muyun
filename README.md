@@ -1,11 +1,13 @@
 # MuYun 慕云
 
-> A snug Obsidian theme for **long-form reading, fast writing & quick navigation** — with an optional companion plugin that adds JS-powered reading aids.
-> 一款为**长文阅读、高效写作、快速定位**而生的 Obsidian 主题——可选配套插件提供纯主题做不到的阅读增强。
+> A snug Obsidian theme for **long-form reading, fast writing & quick navigation** — with an optional [companion plugin](https://github.com/GarrettFynn/muyun-companion) that adds JS-powered reading aids.
+> 一款为**长文阅读、高效写作、快速定位**而生的 Obsidian 主题——可选[配套插件 MuYun Companion](https://github.com/GarrettFynn/muyun-companion) 提供纯主题做不到的阅读增强。
 
-**[English](#overview)** · [中文](#概述-overview)
+**[English](#overview)** · **[中文](#概述-overview)**
 
 > 🖥 **Also available for Typora** → [typora-muyun](https://github.com/GarrettFynn/typora-muyun) — the same design as a Typora theme (light / dark / wide variants). 同一设计的 Typora 版主题（浅色 / 深色 / 宽幅变体）。
+
+> 🧩 **Companion plugin 配套插件** → [MuYun Companion](https://github.com/GarrettFynn/muyun-companion) — ten reading & writing aids (progress bar, edge minimap, spotlight, resume reading, stats & more); install from the **community plugin directory** (search "MuYun Companion") or [GitHub Releases](https://github.com/GarrettFynn/muyun-companion/releases). 十项阅读/写作增强（进度条/小地图/聚光灯/续读/统计等）；社区插件目录搜索 **MuYun Companion** 安装，或从 [GitHub Releases](https://github.com/GarrettFynn/muyun-companion/releases) 手动/BRAT 安装。
 
 ---
 
