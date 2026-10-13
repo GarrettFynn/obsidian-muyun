@@ -44,7 +44,7 @@
 
 ### Companion plugin 配套插件（可选 Optional）
 
-The theme is pure CSS and works fully on its own. **MuYun Companion** adds what CSS cannot do — ten reading & writing aids, each with its own toggle. 主题本身纯 CSS、独立完整。**MuYun Companion** 补足 CSS 做不到的部分——十项阅读/写作增强，每项可独立开关。
+The theme is pure CSS and works fully on its own. **MuYun Companion** adds what CSS cannot do — ten reading & writing aids, each with its own toggle. It now lives in its own repository: [GarrettFynn/muyun-companion](https://github.com/GarrettFynn/muyun-companion). 主题本身纯 CSS、独立完整。**MuYun Companion** 补足 CSS 做不到的部分——十项阅读/写作增强，每项可独立开关；现已在独立仓库发布：[GarrettFynn/muyun-companion](https://github.com/GarrettFynn/muyun-companion)。
 
 **What it adds 功能清单**：
 
@@ -63,10 +63,12 @@ The theme is pure CSS and works fully on its own. **MuYun Companion** adds what 
 
 **How to install 安装步骤**：
 
-1. Download the three files from the [**Companion release page**](https://github.com/GarrettFynn/obsidian-muyun/releases/tag/companion-0.5.0): `main.js`, `manifest.json`, `styles.css`. 从[配套插件发布页](https://github.com/GarrettFynn/obsidian-muyun/releases/tag/companion-0.5.0)下载这三个文件。
-2. Put them into `<vault>/.obsidian/plugins/muyun-companion/` (create the folder if needed). 放入库目录 `.obsidian/plugins/muyun-companion/`（没有就新建该文件夹）。
-3. In Obsidian: Settings → Community plugins → turn off **Restricted mode** if asked → enable **MuYun Companion** → press `Ctrl+R` once. 设置 → 第三方插件 → 关闭安全模式（如提示）→ 启用 MuYun Companion → 按 `Ctrl+R` 重载一次。
-4. Optional: install [Style Settings](https://github.com/mgmeyers/obsidian-style-settings) for 12 companion options + 24 theme options. 可选：安装 Style Settings 插件解锁 12 项插件参数与 24 项主题参数。
+1. **Community directory 社区目录（收录后推荐）**：Settings → Community plugins → Browse → search **"MuYun Companion"**（目录搜索同步有数小时延迟）。设置 → 第三方插件 → 浏览 → 搜索 MuYun Companion。
+2. **Manual 手动安装**：Download `main.js`, `manifest.json`, `styles.css` from the [**MuYun Companion releases**](https://github.com/GarrettFynn/muyun-companion/releases). 从 [muyun-companion 仓库 Releases](https://github.com/GarrettFynn/muyun-companion/releases) 下载三件套。
+3. Put them into `<vault>/.obsidian/plugins/muyun-companion/` (create the folder if needed). 放入库目录 `.obsidian/plugins/muyun-companion/`（没有就新建该文件夹）。
+4. In Obsidian: Settings → Community plugins → turn off **Restricted mode** if asked → enable **MuYun Companion** → press `Ctrl+R` once. 设置 → 第三方插件 → 关闭安全模式（如提示）→ 启用 MuYun Companion → 按 `Ctrl+R` 重载一次。
+5. **BRAT（自动更新）**：install [BRAT](https://github.com/TfTHacker/obsidian42-brat) → Add Beta plugin → `GarrettFynn/muyun-companion`. 用 BRAT 添加该仓库可获得后续自动更新。
+6. Optional: install [Style Settings](https://github.com/mgmeyers/obsidian-style-settings) for 12 companion options + 24 theme options. 可选：安装 Style Settings 插件解锁 12 项插件参数与 24 项主题参数。
 
 > The plugin is pure local computation — no network access, no telemetry. It degrades gracefully: without it the theme loses nothing. 插件纯本地计算、零联网零遥测；不装它主题功能零损失。
 
