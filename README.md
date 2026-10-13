@@ -76,7 +76,11 @@ The theme is pure CSS and works fully on its own. **MuYun Companion** adds what 
 
 ## Style Settings 样式设置
 
+**How to install 如何安装**：Settings → Community plugins → Browse → search **"Style Settings"** → Install & enable; then open Settings → **Style Settings** → **MuYun** section. 设置 → 第三方插件 → 浏览 → 搜索 **Style Settings** 安装并启用，再到 设置 → **Style Settings** → **MuYun** 分组调整。
+
 With [Style Settings](https://github.com/mgmeyers/obsidian-style-settings) installed, **24 options** unlock: link / bold / heading colors (H1–H3), inline title size, paragraph spacing, body contrast presets, line-width presets (40/46/52rem), H2 stripe toggle, zebra table stripes, image cards, tab cards, heading auto-numbering (reading view), code line numbers (reading view), legacy dark accent, efficiency mode, motion speed, and per-effect motion switches. 安装 Style Settings 后可调 24 项：链接/加粗/标题色、内联标题字号、段距、对比度三档、行宽三档、H2 路标条、斑马纹、图片卡片、标签页卡片化、标题自动编号、代码行号（后两者仅阅读视图）、深色灰紫兜底、效率模式、动效提速与单项动效开关。
+
+> The **Efficiency mode** switch（效率模式——一键全关动效）lives in this section; the MuYun Companion plugin's fold animation follows it automatically. 效率模式开关即在此分组；MuYun Companion 插件的折叠动画会自动跟随此开关。
 
 > The dark interactive accent follows your Obsidian global accent color by design; a "legacy MuYun purple" toggle is provided. 深色交互色默认跟随 Obsidian 全局主题色，面板提供「恢复 MuYun 灰紫」开关。
 
