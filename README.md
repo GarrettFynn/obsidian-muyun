@@ -7,7 +7,7 @@
 
 > 🖥 **Also available for Typora** → [typora-muyun](https://github.com/GarrettFynn/typora-muyun) — the same design as a Typora theme (light / dark / wide variants). 同一设计的 Typora 版主题（浅色 / 深色 / 宽幅变体）。
 
-> 🧩 **Companion plugin 配套插件** → [MuYun Companion](https://github.com/GarrettFynn/muyun-companion) — ten reading & writing aids (progress bar, edge minimap, spotlight, resume reading, stats & more); install from the **community plugin directory** (search "MuYun Companion") or [GitHub Releases](https://github.com/GarrettFynn/muyun-companion/releases). 十项阅读/写作增强（进度条/小地图/聚光灯/续读/统计等）；社区插件目录搜索 **MuYun Companion** 安装，或从 [GitHub Releases](https://github.com/GarrettFynn/muyun-companion/releases) 手动/BRAT 安装。
+> 🧩 **Companion plugin 配套插件** → [MuYun Companion](https://github.com/GarrettFynn/muyun-companion) — a suite of reading & writing aids: progress bar, edge minimap with live section labels, continue-reading tray, read marks in the file explorer, reading stats & more; install from the **community plugin directory** (search "MuYun Companion") or [GitHub Releases](https://github.com/GarrettFynn/muyun-companion/releases). 阅读进度条、带章节标签的侧缘小地图、继续阅读队列、文件树已读标记、阅读统计等一整套阅读/写作增强；社区插件目录搜索 **MuYun Companion** 安装，或从 [GitHub Releases](https://github.com/GarrettFynn/muyun-companion/releases) 手动/BRAT 安装。
 
 ---
 
@@ -46,22 +46,16 @@
 
 ### Companion plugin 配套插件（可选 Optional）
 
-The theme is pure CSS and works fully on its own. **MuYun Companion** adds what CSS cannot do — ten reading & writing aids, each with its own toggle. It now lives in its own repository: [GarrettFynn/muyun-companion](https://github.com/GarrettFynn/muyun-companion). 主题本身纯 CSS、独立完整。**MuYun Companion** 补足 CSS 做不到的部分——十项阅读/写作增强，每项可独立开关；现已在独立仓库发布：[GarrettFynn/muyun-companion](https://github.com/GarrettFynn/muyun-companion)。
+The theme is pure CSS and works fully on its own. **MuYun Companion** adds what CSS cannot do — a suite of reading & writing aids, each with its own toggle. It now lives in its own repository: [GarrettFynn/muyun-companion](https://github.com/GarrettFynn/muyun-companion) — see its README for the full plain-language feature list. 主题本身纯 CSS、独立完整。**MuYun Companion** 补足 CSS 做不到的部分——一整套阅读/写作增强，每项可独立开关；现已在独立仓库发布：[GarrettFynn/muyun-companion](https://github.com/GarrettFynn/muyun-companion)，完整功能清单见其 README。
 
-**What it adds 功能清单**：
+**Highlights 功能亮点**：
 
-| Feature 功能 | Default 默认 | What it does 说明 |
-| --- | --- | --- |
-| Reading progress bar 阅读进度条 (H1) | On 开 | 4px gradient bar at the top, follows scrolling. 顶部 4px 渐变细条，随滚动显示读到哪了 |
-| Edge minimap 侧缘小地图 (H8) | On 开 | Heading dot-rail on the right; tracks scrolling (reading) or cursor (live preview); click to jump; read trail persisted. 右缘标题点轨，阅读态随滚动、编辑态随光标，点击跳转，已读轨迹持久化 |
-| Reading spotlight 阅读聚光灯 (H2) | Off 关 | Current section lit, others dimmed — scroll-driven in reading view, cursor-driven in live preview. 当前小节全亮其余降透明：阅读态跟滚动、实时预览跟光标 |
-| Resume reading 续读记忆 | On 开 | Reopens each note at the position you left (LRU 400 notes). 每篇笔记记住上次读到的位置 |
-| Heading breadcrumb 标题面包屑 | On 开 | Status bar shows `Chapter › Section` and updates as you scroll. 状态栏实时显示当前章节路径 |
-| Reading time 阅读时长估计 | On 开 | "≈N min" in the status bar (400 CJK chars/min). 状态栏显示预计阅读分钟数 |
-| Reading stats 阅读统计 | Off 关 | Local daily/per-note time tracking, daily goal, weekly report, 12-week heatmap. 本地记录每日/每篇阅读时长、每日目标、周报与 12 周热图 |
-| Copy section link 复制小节链接 | — | Command that copies `[[Note#Section]]` to the clipboard. 一键复制当前小节的维基链接 |
-| Paragraph focus 段落聚焦 | Off 关 | In live preview, the paragraph around the cursor stays lit, the rest fades (writing mode). 光标所在段落全亮、其余淡出（写稿模式） |
-| Typewriter scrolling 打字机滚动 | Off 关 | Keeps the cursor at the upper third of the screen, smooth-eased. 光标始终保持在屏幕上三分之一处（平滑滚动） |
+- **Reading progress bar 阅读进度条** — thin gradient bar with chapter ticks, plus a one-time glow the first time you finish a note. 细渐变条带章节刻度，首读完结柔光一次
+- **Edge minimap 侧缘小地图** — one dot per heading; the current section's title floats beside your position with a pointer arrow; click any dot to jump; very long outlines auto-condense. 一标题一点，当前章节标签带箭头常驻在旁，点击直达；超长大纲自动缩点不丢章节
+- **Continue-reading tray 继续阅读队列** — everything you're mid-way through, with search, folder grouping, per-note progress & time spent. 在读笔记一览：搜索、按文件夹分组、进度与累计时长
+- **Read marks 已读标记** — finished notes get a green ✓ in the file explorer (automatic past 95%, or manual). 读过的笔记在文件树标绿 ✓（读到 95% 自动或手动标记）
+- **Reading stats 阅读统计** — local-only time tracking: daily goal, streaks, hourly rhythm, 12-week heatmap, exportable weekly report. 纯本地统计：每日目标、连续天数、时段节奏、12 周热图、可导出周报
+- **For writers 写作侧** — paragraph focus, typewriter scrolling, smooth section folding. 段落聚焦、打字机滚动、折叠平滑展开
 
 **How to install 安装步骤**：
 
